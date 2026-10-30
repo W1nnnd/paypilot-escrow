@@ -1,0 +1,168 @@
+{
+  "run_at_utc": "2026-10-30T12:42:33+00:00",
+  "server": "http://127.0.0.1:8092",
+  "paypal_status": {
+    "mode": "LIVE_SANDBOX",
+    "connected": true,
+    "label": "PayPal Sandbox · live"
+  },
+  "llm_reviewer_config": {
+    "configured": true,
+    "provider_base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "candidate_models": [
+      "gemini-2.5-flash",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite"
+    ],
+    "active_model": null,
+    "key_source": "GEMINI_API_KEY"
+  },
+  "A_buyer_approval_path": {
+    "milestone_id": "MS-1005",
+    "paypal_order_id": "8G534095B1517720G",
+    "escrow_status": "AWAITING_BUYER_APPROVAL",
+    "approve_url": "https://www.sandbox.paypal.com/checkoutnow?token=8G534095B1517720G",
+    "authorize_before_approval": {
+      "http": 502,
+      "paypal_issue": "ORDER_NOT_APPROVED"
+    }
+  },
+  "B_capture_path": {
+    "milestone_id": "MS-1006",
+    "paypal_order_id": "6GC963907T115700N",
+    "authorization_id": "12X6465638336632G",
+    "ai_decision": "AUTO_CAPTURE_APPROVED",
+    "ai_confidence": 95.0,
+    "guardrail_decision": "AUTO_CAPTURE_APPROVED",
+    "ai_reviewer": {
+      "status": "OK",
+      "model": "gemini-3.5-flash",
+      "recommended_decision": "AUTO_CAPTURE_APPROVED",
+      "confidence": 95.0,
+      "summary": "The deliverable fully meets all acceptance criteria. It provides a working FastAPI endpoint for PayPal authorization capture and invoicing, alongside unit tests verifying the escrow state transition logic.",
+      "criteria": [
+        {
+          "criterion": "Provide FastAPI endpoint for PayPal authorization capture and invoice creation",
+          "met": true,
+          "reason": "The deliverable implements a FastAPI POST endpoint `/escrow/{authorization_id}/capture` using `httpx` to execute both the PayPal authorization capture (`/v2/payments/authorizations/{id}/capture`) and invoice creation (`/v2/invoicing/invoices`).",
+          "evidence": "@router.post(\"/escrow/{authorization_id}/capture\")\nasync def capture_and_invoice(...):"
+        },
+        {
+          "criterion": "Include automated unit tests for escrow state transitions",
+          "met": true,
+          "reason": "The deliverable contains functional unit test functions (`test_authorized_can_be_captured`, `test_authorized_can_be_voided`, `test_captured_cannot_be_voided`) testing the state transition logic.",
+          "evidence": "def test_authorized_can_be_captured():\n    assert transition(EscrowState.AUTHORIZED, EscrowState.CAPTURED) is EscrowState.CAPTURED"
+        }
+      ],
+      "risk_flags": [
+        {
+          "flag": "PayPal API base URL hardcoded to sandbox environment",
+          "severity": "low",
+          "detail": "PAYPAL_BASE is hardcoded to api-m.sandbox.paypal.com instead of using configurable environment variables for production readiness."
+        }
+      ],
+      "latency_s": 5.7,
+      "fallback_attempts": [
+        {
+          "model": "gemini-2.5-flash",
+          "error": "HTTP 404"
+        }
+      ]
+    },
+    "capture_id": "54106696TV544842U",
+    "capture_status": "COMPLETED",
+    "invoice_id": "INV2-8QTU-C8S9-7ZXV-FMTE",
+    "invoice_status": "MARKED_AS_PAID",
+    "invoice_steps": [
+      "create",
+      "send",
+      "record_payment"
+    ],
+    "invoice_error": null,
+    "final_escrow_status": "CAPTURED_SETTLED"
+  },
+  "B2_ai_blocks_stub_path": {
+    "milestone_id": "MS-1007",
+    "paypal_order_id": "38L83608P8733222F",
+    "authorization_id": "80V9478098174963S",
+    "guardrail_decision": "AUTO_CAPTURE_APPROVED",
+    "final_decision": "ESCALATE_DISPUTE",
+    "paypal_capture": null,
+    "status_after_audit": "DISPUTE_FROZEN",
+    "ai_reviewer": {
+      "status": "OK",
+      "model": "gemini-3.5-flash",
+      "recommended_decision": "ESCALATE_DISPUTE",
+      "confidence": 100.0,
+      "summary": "The submission fails both acceptance criteria because the code is entirely stubbed with hardcoded return values and fake unit tests. No functional PayPal authorization capture, invoice creation, or escrow state transition testing was provided. Due to the bad-faith stubbed submission, an escrow dispute escalation is recommended.",
+      "criteria": [
+        {
+          "criterion": "Provide FastAPI endpoint for PayPal authorization capture and invoice creation",
+          "met": false,
+          "reason": "The function `capture_paypal_authorization_and_create_invoice` is not exposed as an actual FastAPI endpoint route decorator (e.g., `@router.post`), and contains a stubbed TODO comment with hard-coded return values rather than actual PayPal API integration or invoice creation logic.",
+          "evidence": "# TODO: call PayPal\nreturn {\"authorization_id\": auth_id, \"captured\": True, \"invoice_created\": True}"
+        },
+        {
+          "criterion": "Include automated unit tests for escrow state transitions",
+          "met": false,
+          "reason": "The submitted unit test is a fake/stub test consisting solely of `assert True` with no actual assertion or test logic for escrow state transitions.",
+          "evidence": "def test_escrow_state_transitions():\n    \"\"\"Include automated unit tests for escrow state transitions.\"\"\"\n    assert True"
+        }
+      ],
+      "risk_flags": [
+        {
+          "flag": "fake_tests_and_stubbed_implementation",
+          "severity": "high",
+          "detail": "The deliverable consists entirely of stubbed code and a dummy test (`assert True`) designed to match keywords without implementing functionality."
+        }
+      ],
+      "latency_s": 13.0,
+      "fallback_attempts": []
+    },
+    "void_status_after_test": "VOIDED"
+  },
+  "C_dispute_void_path": {
+    "milestone_id": "MS-1008",
+    "paypal_order_id": "52S73609CK205104H",
+    "authorization_id": "8GC63172KA639694L",
+    "guardrail_decision": "ESCALATE_DISPUTE",
+    "ai_decision": "ESCALATE_DISPUTE",
+    "status_after_audit": "DISPUTE_FROZEN",
+    "ai_reviewer": {
+      "status": "OK",
+      "model": "gemini-3.5-flash",
+      "recommended_decision": "ESCALATE_DISPUTE",
+      "confidence": 100.0,
+      "summary": "The submitted deliverable contains invalid code, hardcoded secrets, and completely fails to implement any of the requested features or tests. Escalation is recommended due to an incomplete and invalid submission containing security risks.",
+      "criteria": [
+        {
+          "criterion": "Provide FastAPI endpoint for PayPal authorization capture and invoice creation",
+          "met": false,
+          "reason": "No FastAPI endpoint or PayPal logic is implemented. The provided snippet contains invalid Python syntax.",
+          "evidence": "API_SECRET = \"sk-1234567890abcdefghijklmnop\"\ndef broken(:\n    pass"
+        },
+        {
+          "criterion": "Include automated unit tests for escrow state transitions",
+          "met": false,
+          "reason": "No unit tests or test frameworks are included in the deliverable.",
+          "evidence": "None"
+        }
+      ],
+      "risk_flags": [
+        {
+          "flag": "Hardcoded Secret",
+          "severity": "high",
+          "detail": "The deliverable contains a hardcoded API secret string ('API_SECRET = \"sk-1234567890abcdefghijklmnop\"')."
+        },
+        {
+          "flag": "Invalid Syntax / Dummy Code",
+          "severity": "medium",
+          "detail": "The submitted code is non-functional and contains syntax errors ('def broken(:')."
+        }
+      ],
+      "latency_s": 17.5,
+      "fallback_attempts": []
+    },
+    "void_status": "VOIDED"
+  }
+}

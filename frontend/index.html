@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PayPilot Escrow — Autonomous AI Milestone Auditor & PayPal v2 Settlement</title>
+  <!-- AG Grid Community CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-quartz-dark.css" />
+  <style>
+    :root {
+      --bg: #0b111e;
+      --card: #121c2e;
+      --border: #22324d;
+      --text: #e6eef8;
+      --muted: #8fa3bf;
+      --paypal-blue: #0070ba;
+      --paypal-cyan: #00a8ea;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 20px 28px; }
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 20px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .badge { background: rgba(0, 168, 234, 0.15); border: 1px solid var(--paypal-cyan); color: var(--paypal-cyan); padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+    .kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .kpi-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .kpi-value { font-size: 26px; font-weight: 700; margin-top: 6px; color: #fff; }
+    .main-grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 20px; margin-bottom: 22px; }
+    .panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .panel-title { font-size: 15px; font-weight: 700; color: #fff; }
+    button { background: linear-gradient(135deg, var(--paypal-blue), var(--paypal-cyan)); color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; }
+    button.secondary { background: #1e2d47; border: 1px solid var(--border); }
+    button:hover { opacity: 0.92; }
+    select, input, textarea { width: 100%; background: #0d1524; border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 13px; margin-top: 4px; margin-bottom: 10px; }
+    textarea { font-family: 'JetBrains Mono', monospace; font-size: 12px; height: 125px; }
+    label { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .gantt-row { display: grid; grid-template-columns: 180px 1fr 90px; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 12.5px; }
+    .gantt-bar-bg { background: #0d1524; height: 14px; border-radius: 999px; overflow: hidden; position: relative; }
+    .gantt-bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+    .ai-panel { background: #0d1524; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 12.5px; }
+    .ai-panel h4 { font-size: 13px; margin-bottom: 6px; color: #fff; }
+    .ai-crit { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .ai-ok { color: var(--green); font-weight: 700; }
+    .ai-bad { color: var(--red); font-weight: 700; }
+    .flag-high { color: var(--red); } .flag-medium { color: var(--amber); } .flag-low { color: var(--muted); }
+    pre.audit-box { background: #090e18; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 11.5px; color: #a7f3d0; overflow-x: auto; max-height: 220px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h2>PayPilot Escrow AI</h2>
+      <span class="badge">PayPal Orders v2 AUTHORIZE + CAPTURE</span>
+      <span class="badge">AG Grid Financial Workbench</span>
+    </div>
+    <div>
+      <button class="secondary" onclick="exportCsv()">Export Ledger CSV</button>
+      <button onclick="prefillAndRunDemo()">One-Click AI Audit & Auto-Capture Demo</button>
+    </div>
+  </header>
+
+  <section class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Active Escrow Milestones</div>
+      <div class="kpi-value" id="kpi-total">4</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">PayPal Authorized Hold (Locked)</div>
+      <div class="kpi-value" id="kpi-locked" style="color: var(--amber);">$9,150.00</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">AI-Verified & Captured (Settled)</div>
+      <div class="kpi-value" id="kpi-settled" style="color: var(--green);">$2,400.00</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">PayPal Connection</div>
+      <div class="kpi-value" id="kpi-mode" style="font-size: 16px; color: var(--amber); margin-top: 12px;">Checking…</div>
+      <div class="kpi-label" id="kpi-mode-sub" style="margin-top: 6px; text-transform: none;"></div>
+    </div>
+  </section>
+
+  <section class="main-grid">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">AG Grid Enterprise Escrow & Reconciliation Ledger</span>
+        <input type="text" id="quick-filter" placeholder="Filter by Order ID, Contract, Email, or Status..." style="width: 280px; margin: 0;" oninput="onFilterTextBoxChanged()" />
+      </div>
+      <div id="escrowGrid" class="ag-theme-quartz-dark" style="height: 330px; width: 100%;"></div>
+
+      <div class="panel-header" style="margin-top: 18px;">
+        <span class="panel-title">Interactive Milestone Escrow Timeline & Release Schedule</span>
+      </div>
+      <div id="ganttContainer"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Autonomous AI Deliverable Auditor & PayPal Capture Trigger</span>
+      </div>
+      <label>Target Escrow Milestone</label>
+      <select id="milestone-select"></select>
+
+      <label>Deliverable Artifact Type</label>
+      <select id="artifact-type">
+        <option value="python_code">Python Source Code / FastAPI Endpoint Patch</option>
+        <option value="api_spec">OpenAPI / Webhook Verification Spec</option>
+      </select>
+
+      <label>Submitted Deliverable Payload (Verified against Milestone Contract Criteria)</label>
+      <div style="display:flex; gap:8px; margin: 4px 0 2px;">
+        <button class="secondary" onclick="loadSample('good')">Load real deliverable</button>
+        <button class="secondary" onclick="loadSample('stub')">Load stubbed deliverable</button>
+      </div>
+      <textarea id="artifact-content">from fastapi import APIRouter
+import httpx
+
+router = APIRouter()
+
+async def capture_paypal_escrow_authorization(auth_id: str, amount: float) -> dict:
+    """Provide FastAPI endpoint for PayPal authorization capture and invoice creation."""
+    return {"authorization_id": auth_id, "status": "COMPLETED", "invoice_created": True}
+
+def test_escrow_state_transitions():
+    """Include automated unit tests for escrow state transitions."""
+    assert True
+</textarea>
+
+      <label>Acceptance Evidence for the AI Reviewer (test output, demo notes — optional)</label>
+      <textarea id="acceptance-evidence" style="height: 60px;" placeholder="e.g. pytest output: 12 passed"></textarea>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+        <button style="flex: 1;" onclick="submitVerification()">Run AI Audit & Trigger PayPal Capture</button>
+        <button class="secondary" onclick="voidSelected()">Void Hold</button>
+      </div>
+
+      <div id="approval-box" style="display:none; border: 1px dashed var(--amber); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 12.5px;">
+        <div style="margin-bottom: 8px;">Buyer approval required: this PayPal Sandbox order is waiting for the buyer to log in with a <strong>Sandbox personal account</strong> and approve.</div>
+        <a id="approve-link" href="#" target="_self"><button>Approve on PayPal Sandbox</button></a>
+        <button class="secondary" onclick="authorizeSelected()">I approved — authorize now</button>
+      </div>
+
+      <label>New Escrow Funding (live sandbox only)</label>
+      <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+        <select id="funding" style="flex: 1; margin: 0;">
+          <option value="paypal_buyer_approval">Buyer approves on PayPal (real checkout redirect)</option>
+          <option value="sandbox_test_card">Sandbox test card (instant real sandbox authorization)</option>
+        </select>
+        <button class="secondary" onclick="createNewEscrowHold()">+ New AUTHORIZE Hold</button>
+      </div>
+
+      <div class="ai-panel" id="ai-panel">
+        <h4>AI Reviewer Reasoning</h4>
+        <div id="ai-panel-body" style="color: var(--muted);">Run an audit to see the AI reviewer's per-criterion reasons and risk flags.</div>
+      </div>
+
+      <label>PayPal API & AI Auditor Telemetry</label>
+      <pre class="audit-box" id="audit-output">Select a milestone and click "Run AI Audit & Trigger PayPal Capture" to inspect real-time verification checks and PayPal v2 CAPTURE + INVOICING payloads.</pre>
+    </div>
+  </section>
+
+  <script>
+    let gridApi = null;
+
+    const columnDefs = [
+      { field: "milestone_id", headerName: "ID", width: 95, pinned: "left" },
+      { field: "project_name", headerName: "Project", minWidth: 180, flex: 1 },
+      {
+        field: "amount",
+        headerName: "Escrow Amount",
+        width: 135,
+        valueFormatter: p => `${p.data.currency} $${Number(p.value).toLocaleString(undefined, {minimumFractionDigits: 2})}`
+      },
+      {
+        field: "escrow_status",
+        headerName: "PayPal Escrow State",
+        width: 165,
+        cellStyle: p => {
+          if (p.value === "CAPTURED_SETTLED") return { color: "#10b981", fontWeight: "700" };
+          if (p.value === "ESCROW_AUTHORIZED") return { color: "#38bdf8", fontWeight: "600" };
+          if (p.value === "VOIDED" || p.value === "BUYER_CANCELLED") return { color: "#8fa3bf", fontWeight: "600" };
+          return { color: "#f59e0b", fontWeight: "600" };
+        }
+      },
+      {
+        field: "ai_confidence",
+        headerName: "AI Score",
+        width: 105,
+        valueFormatter: p => p.value ? `${p.value.toFixed(1)}%` : "Pending"
+      },
+      {
+        field: "paypal_mode",
+        headerName: "Data Source",
+        width: 165,
+        valueFormatter: p => p.value === "LIVE_SANDBOX" ? "PayPal Sandbox (live)" : "Replay (simulated)",
+        cellStyle: p => p.value === "LIVE_SANDBOX" ? { color: "#10b981", fontWeight: "700" } : { color: "#8fa3bf", fontStyle: "italic" }
+      },
+      { field: "paypal_order_id", headerName: "PayPal Order ID", width: 190 },
+      { field: "paypal_authorization_id", headerName: "PayPal Auth ID", width: 190 },
+      { field: "paypal_capture_id", headerName: "PayPal Capture ID", width: 190 },
+      { field: "paypal_invoice_id", headerName: "PayPal Invoice ID", width: 170 }
+    ];
+
+    const gridOptions = {
+      columnDefs,
+      rowData: [],
+      defaultColDef: { sortable: true, filter: true, resizable: true },
+      animateRows: true,
+      onRowClicked: e => {
+        document.getElementById("milestone-select").value = e.data.milestone_id;
+        updateApprovalBox();
+      }
+    };
+
+    function onFilterTextBoxChanged() {
+      gridApi.setGridOption("quickFilterText", document.getElementById("quick-filter").value);
+    }
+
+    function exportCsv() {
+      gridApi.exportDataAsCsv({ fileName: "PayPilot_Escrow_Ledger_2026.csv" });
+    }
+
+    function renderGantt(milestones) {
+      const container = document.getElementById("ganttContainer");
+      container.innerHTML = milestones.map(m => {
+        const color = m.escrow_status === "CAPTURED_SETTLED" ? "#10b981" : (m.escrow_status === "ESCROW_AUTHORIZED" ? "#00a8ea" : "#f59e0b");
+        return `
+          <div class="gantt-row">
+            <div><strong>${m.milestone_id}</strong> · ${m.due_date}</div>
+            <div class="gantt-bar-bg">
+              <div class="gantt-bar-fill" style="width: ${m.progress_pct}%; background: ${color};"></div>
+            </div>
+            <div style="text-align: right; color: ${color}; font-weight: 600;">${m.progress_pct}%</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    let MILESTONES = [];
+
+    async function refreshPayPalStatus() {
+      const el = document.getElementById("kpi-mode");
+      const sub = document.getElementById("kpi-mode-sub");
+      try {
+        const st = await (await fetch("/api/paypal/status")).json();
+        if (st.mode === "LIVE_SANDBOX" && st.connected) {
+          el.textContent = "PayPal Sandbox · live";
+          el.style.color = "var(--green)";
+          sub.textContent = "OAuth token issued by api-m.sandbox.paypal.com";
+        } else if (st.mode === "LIVE_SANDBOX") {
+          el.textContent = "PayPal Sandbox · error";
+          el.style.color = "var(--red)";
+          sub.textContent = (st.error && (st.error.paypal_error || st.error.details)) || "Could not reach PayPal";
+        } else {
+          el.textContent = "Replay (simulated)";
+          el.style.color = "var(--amber)";
+          sub.textContent = "No PayPal credentials configured — no PayPal calls are made";
+        }
+        const llm = st.llm_review || {};
+        sub.textContent += st.llm_review_configured
+          ? ` · AI reviewer: ${llm.active_model || (llm.candidate_models || [])[0] || "configured"}`
+          : " · AI reviewer not configured (guardrails only)";
+      } catch (e) {
+        el.textContent = "Status unavailable";
+      }
+    }
+
+    async function loadSample(name) {
+      const res = await fetch(`/api/samples/${name}`);
+      if (res.ok) document.getElementById("artifact-content").value = (await res.json()).content;
+    }
+
+    function el(tag, cls, text) {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;  // LLM output is untrusted: never innerHTML
+      return e;
+    }
+
+    function renderAiReviewer(r) {
+      const body = document.getElementById("ai-panel-body");
+      body.innerHTML = "";
+      body.style.color = "var(--text)";
+      if (!r || !r.status) {
+        body.style.color = "var(--muted)";
+        body.textContent = "No AI review yet for this milestone.";
+        return;
+      }
+      if (r.status !== "OK") {
+        body.appendChild(el("div", "ai-bad", r.status === "NOT_CONFIGURED"
+          ? "AI reviewer not configured — decision made by deterministic guardrails only."
+          : "AI reviewer unavailable — auto-capture blocked."));
+        return;
+      }
+      const head = el("div");
+      head.appendChild(el("strong", null, `${r.model}: `));
+      head.appendChild(el("span", r.recommended_decision === "AUTO_CAPTURE_APPROVED" ? "ai-ok" : "ai-bad", r.recommended_decision));
+      if (r.guardrail_decision) head.appendChild(el("span", null, `  (guardrails: ${r.guardrail_decision})`));
+      body.appendChild(head);
+      body.appendChild(el("div", null, r.summary || ""));
+      (r.criteria || []).forEach(c => {
+        const d = el("div", "ai-crit");
+        d.appendChild(el("span", c.met ? "ai-ok" : "ai-bad", c.met ? "✔ " : "✘ "));
+        d.appendChild(el("strong", null, c.criterion));
+        d.appendChild(el("div", null, c.reason));
+        if (c.evidence) d.appendChild(el("div", "flag-low", `Evidence: ${c.evidence}`));
+        body.appendChild(d);
+      });
+      if ((r.risk_flags || []).length) {
+        body.appendChild(el("h4", null, "Risk flags"));
+        r.risk_flags.forEach(f => body.appendChild(el("div", `flag-${f.severity}`, `[${f.severity}] ${f.flag}: ${f.detail}`)));
+      }
+    }
+
+    function selectedMilestone() {
+      const id = document.getElementById("milestone-select").value;
+      return MILESTONES.find(m => m.milestone_id === id);
+    }
+
+    function updateApprovalBox() {
+      const m = selectedMilestone();
+      const box = document.getElementById("approval-box");
+      if (m && m.escrow_status === "AWAITING_BUYER_APPROVAL" && m.approve_url) {
+        document.getElementById("approve-link").href = m.approve_url;
+        box.style.display = "block";
+      } else {
+        box.style.display = "none";
+      }
+      renderAiReviewer(m && m.ai_reviewer);
+    }
+
+    async function postJson(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const out = await res.json();
+      document.getElementById("audit-output").textContent = (res.ok ? "" : `HTTP ${res.status}\n`) + JSON.stringify(out, null, 2);
+      await refreshLedger();
+      return out;
+    }
+
+    async function authorizeSelected() {
+      const m = selectedMilestone();
+      if (m) await postJson(`/api/escrow/${m.milestone_id}/authorize`);
+    }
+
+    async function voidSelected() {
+      const m = selectedMilestone();
+      if (m) await postJson(`/api/escrow/${m.milestone_id}/void`);
+    }
+
+    async function refreshLedger() {
+      const res = await fetch("/api/milestones");
+      const data = await res.json();
+      MILESTONES = data.milestones;
+      gridApi.setGridOption("rowData", data.milestones);
+      renderGantt(data.milestones);
+
+      document.getElementById("kpi-total").textContent = data.metrics.total_milestones;
+      document.getElementById("kpi-locked").textContent = `$${data.metrics.escrow_locked_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+      document.getElementById("kpi-settled").textContent = `$${data.metrics.settled_captured_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+
+      const sel = document.getElementById("milestone-select");
+      const currentVal = sel.value || "MS-1002";
+      sel.innerHTML = data.milestones.map(m =>
+        `<option value="${m.milestone_id}">${m.milestone_id} — ${m.milestone_title} ($${m.amount} ${m.escrow_status})</option>`
+      ).join("");
+      sel.value = currentVal;
+      updateApprovalBox();
+    }
+
+    async function submitVerification() {
+      const milestone_id = document.getElementById("milestone-select").value;
+      const artifact_type = document.getElementById("artifact-type").value;
+      const artifact_content = document.getElementById("artifact-content").value;
+      const acceptance_evidence = document.getElementById("acceptance-evidence").value;
+      document.getElementById("ai-panel-body").textContent = "AI reviewer is reading the deliverable…";
+      await postJson("/api/escrow/verify-and-settle", { milestone_id, artifact_type, artifact_content, acceptance_evidence, test_pass_rate: 0.98 });
+    }
+
+    async function createNewEscrowHold() {
+      const out = await postJson("/api/escrow/create", {
+        contract_id: "CTR-2026-301",
+        project_name: "Agentic Checkout Widget",
+        milestone_title: "Milestone 1: PayPal Smart Buttons + AI Fraud Guard",
+        amount: 275.00,
+        currency: "USD",
+        funding: document.getElementById("funding").value,
+        required_criteria: [
+          "Provide FastAPI endpoint for PayPal authorization capture and invoice creation",
+          "Include automated unit tests for escrow state transitions"
+        ]
+      });
+      if (out.milestone) {
+        document.getElementById("milestone-select").value = out.milestone.milestone_id;
+        updateApprovalBox();
+      }
+    }
+
+    async function prefillAndRunDemo() {
+      document.getElementById("milestone-select").value = "MS-1002";
+      await submitVerification();
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const gridDiv = document.getElementById("escrowGrid");
+      gridApi = agGrid.createGrid(gridDiv, gridOptions);
+      await refreshLedger();
+      await refreshPayPalStatus();
+      await loadSample("good");
+      const q = new URLSearchParams(location.search);
+      const back = q.get("authorized") || q.get("authorize_failed") || q.get("cancelled");
+      if (back) {
+        document.getElementById("milestone-select").value = back;
+        updateApprovalBox();
+        const m = selectedMilestone();
+        document.getElementById("audit-output").textContent = m ? JSON.stringify(m, null, 2) : back;
+      }
+      document.getElementById("milestone-select").addEventListener("change", updateApprovalBox);
+    });
+  </script>
+</body>
+</html>

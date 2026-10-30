@@ -1,0 +1,46 @@
+{
+  "run_at_utc": "2026-10-30T11:58:25+00:00",
+  "server": "http://127.0.0.1:8091",
+  "paypal_status": {
+    "mode": "LIVE_SANDBOX",
+    "connected": true,
+    "label": "PayPal Sandbox \u00b7 live"
+  },
+  "A_buyer_approval_path": {
+    "milestone_id": "MS-1005",
+    "paypal_order_id": "5XY238705X992233C",
+    "escrow_status": "AWAITING_BUYER_APPROVAL",
+    "approve_url": "https://www.sandbox.paypal.com/checkoutnow?token=5XY238705X992233C",
+    "authorize_before_approval": {
+      "http": 502,
+      "paypal_issue": "ORDER_NOT_APPROVED"
+    }
+  },
+  "B_capture_path": {
+    "milestone_id": "MS-1006",
+    "paypal_order_id": "2U588027L8483245P",
+    "authorization_id": "3LJ27128DS9002342",
+    "ai_decision": "AUTO_CAPTURE_APPROVED",
+    "ai_confidence": 99.6,
+    "llm_review": "NOT_CONFIGURED",
+    "capture_id": "6F7849299D4081538",
+    "capture_status": "COMPLETED",
+    "invoice_id": "INV2-DBWK-LRU6-53E2-877Q",
+    "invoice_status": "MARKED_AS_PAID",
+    "invoice_steps": [
+      "create",
+      "send",
+      "record_payment"
+    ],
+    "invoice_error": null,
+    "final_escrow_status": "CAPTURED_SETTLED"
+  },
+  "C_dispute_void_path": {
+    "milestone_id": "MS-1007",
+    "paypal_order_id": "0D729666R0082200A",
+    "authorization_id": "3EA653454P127761G",
+    "ai_decision": "ESCALATE_DISPUTE",
+    "status_after_audit": "DISPUTE_FROZEN",
+    "void_status": "VOIDED"
+  }
+}

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: paypilot-escrow-ai
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Set these in the Render dashboard (never commit them). Without them the app runs in Replay (simulated) mode.
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      # Public URL of this service, used for the PayPal return/cancel redirect after buyer approval.
+      - key: PUBLIC_BASE_URL
+        sync: false
+      # Optional LLM verdict step (OpenAI-compatible API)
+      - key: AUDITOR_LLM_API_KEY
+        sync: false
+      - key: AUDITOR_LLM_MODEL
+        sync: false
+      - key: AUDITOR_LLM_BASE_URL
+        sync: false
