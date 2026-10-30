@@ -1,25 +1,23 @@
+# Render Blueprint: New + → Blueprint → pick this repo. Render prompts for the `sync: false` values below.
 services:
   - type: web
     name: paypilot-escrow-ai
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips "*"
+    healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
-      # Set these in the Render dashboard (never commit them). Without them the app runs in Replay (simulated) mode.
+      # PayPal Sandbox REST app (developer.paypal.com → Apps & Credentials → Sandbox). Never commit them.
+      # Without them the app runs in Replay (simulated) mode.
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET
         sync: false
-      # Public URL of this service, used for the PayPal return/cancel redirect after buyer approval.
-      - key: PUBLIC_BASE_URL
+      # Google Gemini API key for the AI reviewer. Without it the auditor runs guardrails only.
+      - key: GEMINI_API_KEY
         sync: false
-      # Optional LLM verdict step (OpenAI-compatible API)
-      - key: AUDITOR_LLM_API_KEY
-        sync: false
-      - key: AUDITOR_LLM_MODEL
-        sync: false
-      - key: AUDITOR_LLM_BASE_URL
-        sync: false
+      # Optional: PUBLIC_BASE_URL (PayPal return/cancel redirects; defaults to Render's RENDER_EXTERNAL_URL)
+      # and AUDITOR_LLM_MODEL (default: gemini-2.5-flash,gemini-3.5-flash,gemini-3.5-flash-lite).

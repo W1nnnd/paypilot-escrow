@@ -180,7 +180,8 @@ def _paypal_error(exc: PayPalAPIError) -> HTTPException:
 
 
 def _public_base_url(request: Request) -> str:
-    return (os.environ.get("PUBLIC_BASE_URL") or str(request.base_url)).rstrip("/")
+    # PUBLIC_BASE_URL wins; on Render, RENDER_EXTERNAL_URL (https://<service>.onrender.com) is set automatically.
+    return (os.environ.get("PUBLIC_BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL") or str(request.base_url)).rstrip("/")
 
 
 class CreateEscrowRequest(BaseModel):

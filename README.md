@@ -59,7 +59,7 @@ an OAuth token to this process.
 |---|---|
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` (or `PAYPAL_SANDBOX_CLIENT_ID`, `PAYPAL_SANDBOX_CLIENT_SECRET`) | Sandbox REST app credentials. Enables live Sandbox mode. |
 | `PAYPAL_MODE=replay` | Force Replay (simulated) mode. |
-| `PUBLIC_BASE_URL` | Base URL for PayPal's return/cancel redirects (defaults to the request host). |
+| `PUBLIC_BASE_URL` | Optional base URL for PayPal's return/cancel redirects. Defaults to Render's automatic `RENDER_EXTERNAL_URL`, then to the request host. |
 | `PAYPAL_INVOICE_NOTIFY_RECIPIENT=true` | Let PayPal e-mail the invoice to the buyer (default: off). |
 | `GEMINI_API_KEY` (or `AUDITOR_LLM_API_KEY`, which takes precedence) | Enables the AI reviewer. Without it the auditor runs guardrails only and the UI says so. |
 | `AUDITOR_LLM_MODEL` | Comma-separated models to try in order. Default `gemini-2.5-flash,gemini-3.5-flash,gemini-3.5-flash-lite`. |

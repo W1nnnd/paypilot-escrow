@@ -18,8 +18,8 @@ Required: text description; a functional demo (hosted URL or complete run instru
 **Still open:**
 1. **Buyer approval with a real Sandbox buyer login (not yet run).** The approve link works, and approval → return → authorize is covered by a mocked test. A real end-to-end run needs the auto-generated **Sandbox personal account** e-mail/password (developer.paypal.com → Testing Tools → Sandbox Accounts). Capture, invoice and void have been verified via PayPal's sandbox test card.
 2. **Screenshots are stale.** `docs/screenshots/*.png` predate both changes. Retake them in live mode, including the AI Reviewer Reasoning panel.
-3. **Repository.** Not published yet. It must be public with the MIT `LICENSE` at the root (present). `.gitignore` excludes `.env`.
-4. **Hosted demo (optional but recommended).** `render.yaml` is ready. In Render, set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PUBLIC_BASE_URL` and `GEMINI_API_KEY`.
+3. **Repository.** Published (public, MIT): https://github.com/W1nnnd/paypilot-escrow.
+4. **Hosted demo (optional but recommended).** `render.yaml` is ready. In Render, set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` and `GEMINI_API_KEY`. `PUBLIC_BASE_URL` is optional and falls back to `RENDER_EXTERNAL_URL`.
 5. **Video.** A public YouTube video under 3 minutes, recorded in live mode (`docs/DEMO_VIDEO_SCRIPT.md`).
 
 ## Project name
@@ -61,7 +61,7 @@ python · fastapi · pydantic · httpx · paypal-orders-v2 · paypal-payments-v2
 
 ## Links
 
-- Repository: `https://github.com/W1nnnd/paypilot-escrow` (proposed; not created yet, needs your OK to publish)
+- Repository: https://github.com/W1nnnd/paypilot-escrow
 - Hosted demo: `https://paypilot-escrow-ai.onrender.com` (after deployment)
 - Video: YouTube link (script: `docs/DEMO_VIDEO_SCRIPT.md`)
 
@@ -72,5 +72,5 @@ python · fastapi · pydantic · httpx · paypal-orders-v2 · paypal-payments-v2
 ## Deploying to Render (what's needed)
 
 - A Render account. Either connect GitHub in the Render dashboard (Blueprint → pick the repo; `render.yaml` defines the free Python web service), or use a Render API key for CLI/API deploys. Render deploys from a Git repo, so the public GitHub repo has to exist first.
-- Environment variables in Render: `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` (Sandbox REST app), `PUBLIC_BASE_URL` (the Render URL, for PayPal's return redirect), and `GEMINI_API_KEY` (optionally `AUDITOR_LLM_MODEL`). Never commit them.
+- Environment variables in Render: `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` (Sandbox REST app), `GEMINI_API_KEY`, and optionally `PUBLIC_BASE_URL` (defaults to Render's `RENDER_EXTERNAL_URL`) and `AUDITOR_LLM_MODEL`. Never commit them.
 - PayPal Sandbox personal (buyer) and business (seller) test accounts, used to approve orders in the demo.
