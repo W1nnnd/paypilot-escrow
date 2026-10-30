@@ -1,0 +1,171 @@
+{
+  "run_at_utc": "2026-10-30T16:01:34+00:00",
+  "server": "https://paypilot-escrow-ai.onrender.com",
+  "paypal_status": {
+    "mode": "LIVE_SANDBOX",
+    "connected": true,
+    "label": "PayPal Sandbox · live"
+  },
+  "llm_reviewer_config": {
+    "configured": true,
+    "provider_base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "candidate_models": [
+      "gemini-2.5-flash",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite"
+    ],
+    "active_model": null,
+    "key_source": "GEMINI_API_KEY"
+  },
+  "A_buyer_approval_path": {
+    "milestone_id": "MS-1005",
+    "paypal_order_id": "0X145915BR408052A",
+    "escrow_status": "AWAITING_BUYER_APPROVAL",
+    "approve_url": "https://www.sandbox.paypal.com/checkoutnow?token=0X145915BR408052A",
+    "authorize_before_approval": {
+      "http": 502,
+      "paypal_issue": "ORDER_NOT_APPROVED"
+    }
+  },
+  "B_capture_path": {
+    "milestone_id": "MS-1006",
+    "paypal_order_id": "09M351054K952291P",
+    "authorization_id": "66548385NB926512T",
+    "ai_decision": "AUTO_CAPTURE_APPROVED",
+    "ai_confidence": 99.0,
+    "guardrail_decision": "AUTO_CAPTURE_APPROVED",
+    "ai_reviewer": {
+      "status": "OK",
+      "model": "gemini-3.5-flash-lite",
+      "recommended_decision": "AUTO_CAPTURE_APPROVED",
+      "confidence": 100.0,
+      "summary": "The deliverable successfully provides the requested FastAPI endpoint for PayPal authorization capture and invoice creation, complete with proper error handling and integration logic. It also includes comprehensive and functioning unit tests for the escrow state transition logic.",
+      "criteria": [
+        {
+          "criterion": "Provide FastAPI endpoint for PayPal authorization capture and invoice creation",
+          "met": true,
+          "reason": "The code implements a FastAPI router with a POST endpoint that calls the PayPal API to capture an authorization and then creates an invoice, including proper error handling for upstream HTTP errors.",
+          "evidence": "@router.post(\"/escrow/{authorization_id}/capture\") async def capture_and_invoice(...)"
+        },
+        {
+          "criterion": "Include automated unit tests for escrow state transitions",
+          "met": true,
+          "reason": "The code includes actual working unit tests covering valid transitions (authorized to captured, authorized to voided) and invalid transitions (captured to voided).",
+          "evidence": "def test_authorized_can_be_captured(): ... def test_captured_cannot_be_voided(): ..."
+        }
+      ],
+      "risk_flags": [],
+      "latency_s": 2.6,
+      "fallback_attempts": [
+        {
+          "model": "gemini-2.5-flash",
+          "error": "HTTP 404"
+        },
+        {
+          "model": "gemini-3.5-flash",
+          "error": "HTTP 503"
+        }
+      ]
+    },
+    "capture_id": "1KS51027F59380236",
+    "capture_status": "COMPLETED",
+    "invoice_id": "INV2-XUPD-JTWV-PTSK-BJH6",
+    "invoice_status": "MARKED_AS_PAID",
+    "invoice_steps": [
+      "create",
+      "send",
+      "record_payment"
+    ],
+    "invoice_error": null,
+    "final_escrow_status": "CAPTURED_SETTLED"
+  },
+  "B2_ai_blocks_stub_path": {
+    "milestone_id": "MS-1007",
+    "paypal_order_id": "5C243393JA757283J",
+    "authorization_id": "9EP300898F222681T",
+    "guardrail_decision": "AUTO_CAPTURE_APPROVED",
+    "final_decision": "HOLD_FOR_REVISION",
+    "paypal_capture": null,
+    "status_after_audit": "HOLD_FOR_REVISION",
+    "ai_reviewer": {
+      "status": "OK",
+      "model": "gemini-3.5-flash-lite",
+      "recommended_decision": "HOLD_FOR_REVISION",
+      "confidence": 100.0,
+      "summary": "The submitted code relies entirely on stubs, TODO comments, and hard-coded return values without implementing the required PayPal integration. Additionally, the unit tests are placeholders that do not test any actual escrow logic.",
+      "criteria": [
+        {
+          "criterion": "Provide FastAPI endpoint for PayPal authorization capture and invoice creation",
+          "met": false,
+          "reason": "The function uses a TODO comment and returns a hard-coded dictionary without actually implementing any PayPal API integration or invoice creation logic.",
+          "evidence": "return {\"authorization_id\": auth_id, \"captured\": True, \"invoice_created\": True}"
+        },
+        {
+          "criterion": "Include automated unit tests for escrow state transitions",
+          "met": false,
+          "reason": "The test function uses a trivial 'assert True' statement instead of testing any real escrow state transition logic.",
+          "evidence": "assert True"
+        }
+      ],
+      "risk_flags": [
+        {
+          "flag": "Stubbed Implementation",
+          "severity": "high",
+          "detail": "The deliverable relies on placeholders, hard-coded return values, and TODO comments instead of functional code."
+        },
+        {
+          "flag": "Fake Tests",
+          "severity": "high",
+          "detail": "The test suite contains only 'assert Trust' / 'assert True' placeholders that do not validate any actual functionality."
+        }
+      ],
+      "latency_s": 2.2,
+      "fallback_attempts": []
+    },
+    "void_status_after_test": "VOIDED"
+  },
+  "C_dispute_void_path": {
+    "milestone_id": "MS-1008",
+    "paypal_order_id": "1UJ995441E354703V",
+    "authorization_id": "3F183833F9244534Y",
+    "guardrail_decision": "ESCALATE_DISPUTE",
+    "ai_decision": "ESCALATE_DISPUTE",
+    "status_after_audit": "DISPUTE_FROZEN",
+    "ai_reviewer": {
+      "status": "OK",
+      "model": "gemini-3.5-flash-lite",
+      "recommended_decision": "ESCALATE_DISPUTE",
+      "confidence": 100.0,
+      "summary": "The submission fails to implement any of the required features, contains syntactically invalid code, and exposes a hard-coded secret key. Because of the exposed credential and bad-faith code structure, dispute escalation is required.",
+      "criteria": [
+        {
+          "criterion": "Provide FastAPI endpoint for PayPal authorization capture and invoice creation",
+          "met": false,
+          "reason": "The deliverable contains only a syntactically broken function and no FastAPI implementation.",
+          "evidence": "def broken(:\n    pass"
+        },
+        {
+          "criterion": "Include automated unit tests for escrow state transitions",
+          "met": false,
+          "reason": "No unit tests of any kind are present in the deliverable.",
+          "evidence": "None"
+        }
+      ],
+      "risk_flags": [
+        {
+          "flag": "Leaked Secret",
+          "severity": "high",
+          "detail": "A hard-coded secret key ('sk-1234567890abcdefghijklmnop') is exposed in the source code artifact."
+        },
+        {
+          "flag": "Syntax Error",
+          "severity": "medium",
+          "detail": "The provided code contains a syntax error ('def broken(:\n    pass') and cannot be executed."
+        }
+      ],
+      "latency_s": 11.0,
+      "fallback_attempts": []
+    },
+    "void_status": "VOIDED"
+  }
+}

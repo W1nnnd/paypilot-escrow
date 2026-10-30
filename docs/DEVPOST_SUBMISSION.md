@@ -19,7 +19,7 @@ Required: text description; a functional demo (hosted URL or complete run instru
 1. **Buyer approval with a real Sandbox buyer login (not yet run).** The approve link works, and approval → return → authorize is covered by a mocked test. A real end-to-end run needs the auto-generated **Sandbox personal account** e-mail/password (developer.paypal.com → Testing Tools → Sandbox Accounts). Capture, invoice and void have been verified via PayPal's sandbox test card.
 2. **Screenshots are stale.** `docs/screenshots/*.png` predate both changes. Retake them in live mode, including the AI Reviewer Reasoning panel.
 3. **Repository.** Published (public, MIT): https://github.com/W1nnnd/paypilot-escrow.
-4. **Hosted demo (optional but recommended).** `render.yaml` is ready. In Render, set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` and `GEMINI_API_KEY`. `PUBLIC_BASE_URL` is optional and falls back to `RENDER_EXTERNAL_URL`.
+4. **Hosted demo: done.** https://paypilot-escrow-ai.onrender.com is a Render free web service in Singapore, auto-deployed from `main`, running live PayPal Sandbox and Gemini. A test-card run on 31 Oct 2026 at ~00:01 UTC+8 is in `docs/render_live_e2e_results.json`: real deliverable → Gemini approves → capture `1KS51027F59380236` → invoice `INV2-XUPD-JTWV-PTSK-BJH6` `MARKED_AS_PAID`; the stubbed deliverable was held by Gemini and then voided; the deliverable with a hard-coded secret was escalated and voided. Note: the free tier sleeps when idle, so the first request takes ~30–60 s, and the in-memory ledger resets on restart.
 5. **Video.** A public YouTube video under 3 minutes, recorded in live mode (`docs/DEMO_VIDEO_SCRIPT.md`).
 
 ## Project name
@@ -62,7 +62,7 @@ python · fastapi · pydantic · httpx · paypal-orders-v2 · paypal-payments-v2
 ## Links
 
 - Repository: https://github.com/W1nnnd/paypilot-escrow
-- Hosted demo: `https://paypilot-escrow-ai.onrender.com` (after deployment)
+- Hosted demo: https://paypilot-escrow-ai.onrender.com (live PayPal Sandbox + Gemini; Replay rows are labelled)
 - Video: YouTube link (script: `docs/DEMO_VIDEO_SCRIPT.md`)
 
 ## Screenshots (gallery)

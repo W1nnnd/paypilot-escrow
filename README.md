@@ -1,6 +1,8 @@
 # PayPilot Escrow — AI-audited milestone escrow on PayPal
 
-Built for the **PayPal AI Hackathon** (Devpost). Buyers lock a milestone payment with a PayPal
+Built for the **PayPal AI Hackathon** (Devpost).
+
+**Live demo:** https://paypilot-escrow-ai.onrender.com (PayPal Sandbox + Gemini, Render free tier; the first request after idle can take ~30–60 s). Evidence from a hosted run: [`docs/render_live_e2e_results.json`](docs/render_live_e2e_results.json). Buyers lock a milestone payment with a PayPal
 **authorization**; an auditor agent checks the freelancer's deliverable against the contract's acceptance
 criteria; PayPal **captures** the funds and issues an **invoice** only when the audit passes. Otherwise the
 authorization stays on hold, or is **voided** back to the buyer.
