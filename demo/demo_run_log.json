@@ -1,0 +1,88 @@
+{
+  "A": {
+    "milestone_id": "MS-1008",
+    "paypal_order_id": "6UV35299MM8519423",
+    "escrow_status": "AWAITING_BUYER_APPROVAL",
+    "approve_url": "https://www.sandbox.paypal.com/checkoutnow?token=6UV35299MM8519423",
+    "paypal_mode": "LIVE_SANDBOX"
+  },
+  "A_early_authorize_http": 502,
+  "B_create": {
+    "milestone_id": "MS-1009",
+    "paypal_order_id": "4VY9649463045174A",
+    "paypal_authorization_id": "83297955U0548854K",
+    "escrow_status": "ESCROW_AUTHORIZED",
+    "paypal_mode": "LIVE_SANDBOX"
+  },
+  "B_settle_s": 13.3,
+  "B_settle": {
+    "decision": "AUTO_CAPTURE_APPROVED",
+    "confidence": 98.6,
+    "guardrail": "AUTO_CAPTURE_APPROVED",
+    "model": "gemini-3.5-flash-lite",
+    "llm_decision": "AUTO_CAPTURE_APPROVED",
+    "capture": {
+      "mode": "LIVE_SANDBOX",
+      "simulated": false,
+      "capture_id": "3RN795234W837005T",
+      "authorization_id": "83297955U0548854K",
+      "status": "COMPLETED",
+      "amount": {
+        "currency_code": "USD",
+        "value": "275.00"
+      },
+      "final_capture": true,
+      "captured_at": "2026-10-31T03:56:15Z"
+    },
+    "invoice": {
+      "mode": "LIVE_SANDBOX",
+      "simulated": false,
+      "invoice_id": "INV2-MPEX-SJC6-DNHX-TAKA",
+      "invoice_number": "PP-MS-1009-C1A0F9",
+      "amount": {
+        "currency_code": "USD",
+        "value": "275.00"
+      },
+      "recipient_email": "buyer@example.com",
+      "steps": [
+        {
+          "step": "create",
+          "status": "DRAFT"
+        },
+        {
+          "step": "send",
+          "send_to_recipient": false,
+          "payer_view_url": "https://www.sandbox.paypal.com/invoice/p/#INV2-MPEX-SJC6-DNHX-TAKA"
+        },
+        {
+          "step": "record_payment",
+          "capture_id": "3RN795234W837005T"
+        }
+      ],
+      "payer_view_url": "https://www.sandbox.paypal.com/invoice/p/#INV2-MPEX-SJC6-DNHX-TAKA",
+      "status": "MARKED_AS_PAID"
+    },
+    "invoice_error": null,
+    "status": "CAPTURED_SETTLED",
+    "mode": "LIVE_SANDBOX"
+  },
+  "C_create": {
+    "milestone_id": "MS-1010",
+    "paypal_authorization_id": "33T638749X3260030",
+    "escrow_status": "ESCROW_AUTHORIZED"
+  },
+  "C_settle": {
+    "decision": "HOLD_FOR_REVISION",
+    "guardrail": "AUTO_CAPTURE_APPROVED",
+    "llm_decision": "HOLD_FOR_REVISION",
+    "model": "gemini-3.5-flash-lite",
+    "capture": null,
+    "status": "HOLD_FOR_REVISION"
+  },
+  "C_void": {
+    "mode": "LIVE_SANDBOX",
+    "simulated": false,
+    "authorization_id": "33T638749X3260030",
+    "status": "VOIDED"
+  }
+}

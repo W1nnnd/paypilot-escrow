@@ -1,23 +1,63 @@
-# PayPilot Escrow — 3-minute demo video script
+# PayPilot Escrow — demo video script (as recorded)
 
-Target length: 2:45 (hard limit: judges stop at 3:00). Must be a public YouTube video, English narration, and show the app actually running. Use no third-party music unless it is licensed. Screen-record at 1600×1000 or 1920×1080.
+**Rendered file:** `demo/paypilot_demo.mp4` — 1920×1080, 30 fps, H.264 + AAC, **2:50** (hard limit 3:00). English captions are burned in; a matching subtitle file is `demo/paypilot_demo.en.srt`.
+**Voice-over:** offline TTS (Piper, `en_US-ryan-high` voice). No music, no third-party logos beyond the PayPal Sandbox checkout page itself.
 
-> **Before recording:** the hackathon requires a working PayPal Sandbox integration and meaningful AI. Record the PayPal steps in **live Sandbox mode** (`PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` set, buyer approval completed) and with `GEMINI_API_KEY` set so the Gemini reviewer runs (see `DEVPOST_SUBMISSION.md` → "Gaps to close before submitting"). If you record in Replay mode, say so on screen. Never present replay IDs as real PayPal transactions.
+## What was recorded
 
-| Time | Screen | Narration (voice-over) |
+All app footage is headless Chromium (Playwright) screenshots of the **live Render deployment** (`https://paypilot-escrow-ai.onrender.com`) against the **real PayPal Sandbox**, taken on 31 Oct 2026 (~11:55 UTC+8). Every PayPal ID shown comes from that run:
+
+| Step | Milestone | Real Sandbox objects |
 | :--- | :--- | :--- |
-| 0:00–0:15 | Title card: "PayPilot Escrow: AI-verified milestone payments on PayPal" | "Freelancers don't want to wait weeks for milestone payments, and buyers don't want to pay for work that doesn't run. PayPilot Escrow puts an AI auditor between PayPal's authorize and capture steps." |
-| 0:15–0:35 | Dashboard (`01_dashboard_initial.png` state): KPI cards, AG Grid ledger, milestone timeline | "Every milestone in the ledger is a PayPal order with intent AUTHORIZE. The buyer's funds are held, not captured. AG Grid gives the buyer a live reconciliation view of locked and settled amounts." |
-| 0:35–1:00 | Click **+ New PayPal AUTHORIZE Hold** → buyer approves in the PayPal Sandbox popup → new row MS-1006 `ESCROW_AUTHORIZED` (`05_new_authorize_hold.png`) | "The buyer creates a new milestone and approves it with PayPal. PayPilot authorizes the order, and the authorization ID shows up in the grid." |
-| 1:00–1:40 | Create a live hold (+ New AUTHORIZE Hold), click **Load real deliverable**, then click **Run AI Audit & Trigger PayPal Capture**. Show the telemetry: per-criterion checks, confidence, decision `AUTO_CAPTURE_APPROVED` (`03_ai_audit_auto_capture.png`) | "The freelancer submits a deliverable. The auditor checks it against each acceptance criterion in the contract: does the code parse, are the required endpoints and tests there, are there leaked secrets or unsafe eval calls. Then Gemini writes a reasoned verdict for each criterion, shown in the AI Reviewer Reasoning panel. It can block a payout but never force one. Above the eighty percent threshold, PayPilot captures the authorization and creates a PayPal invoice with the audit attached." |
-| 1:40–2:05 | Submit the bad deliverable (eval + hard-coded key) to MS-1004 → `ESCALATE_DISPUTE`, status `DISPUTE_FROZEN`, no capture. Filter the grid on "DISPUTE" (`04_grid_filter_dispute_frozen.png`) | "Now a bad deliverable: a hard-coded API key and an eval call. Confidence falls to twenty-eight percent, so the money stays held and the milestone is frozen for human review. The AI can release funds but can never force a payout." |
-| 2:05–2:25 | **Export Ledger CSV**; quick view of the PayPal Sandbox dashboard showing the captured payment and the invoice | "Finance exports the reconciled ledger in one click, and every capture and invoice matches a real PayPal Sandbox transaction." |
-| 2:25–2:45 | Architecture slide: FastAPI on Render → PayPal Orders v2 / Payments v2 / Invoicing v2; auditor (AST + rules + Gemini); AG Grid front end | "PayPilot runs on Render with FastAPI and PayPal's Orders, Payments and Invoicing APIs. It's open source under the MIT licence. Escrow that releases itself when the work is verifiably done." |
+| Buyer-approval order (not approved in the recording) | MS-1008 | order `6UV35299MM8519423`; `/authorize` before approval → PayPal `422 ORDER_NOT_APPROVED` |
+| Test-card hold → AI pass → capture → invoice | MS-1009 | order `4VY9649463045174A`, authorization `83297955U0548854K`, capture `3RN795234W837005T` (`COMPLETED`), invoice `INV2-MPEX-SJC6-DNHX-TAKA` (`MARKED_AS_PAID`); Gemini model `gemini-3.5-flash-lite`, confidence 98.6% |
+| Stubbed deliverable → AI blocks → void | MS-1010 | authorization `33T638749X3260030`; guardrails `AUTO_CAPTURE_APPROVED`, Gemini `HOLD_FOR_REVISION` → final `HOLD_FOR_REVISION`; void `VOIDED` |
+| Dispute filter | MS-1004 | **Replay (simulated)** seed record, labelled as such on screen |
 
-## Recording checklist
+Honesty notes shown or spoken in the video:
+- The PayPal buyer-approval page is shown, but the recording does **not** log in as the Sandbox buyer. The video says so and funds the next hold with PayPal's **Sandbox test card**, which produces a real authorization.
+- The dispute example (MS-1004) is a replay seed record and is labelled "Replay record (simulated)" in the header badge and the narration.
 
-- [ ] Server started with Sandbox credentials. The KPI card shows "PayPal Sandbox · live" (`/api/paypal/status` → `connected: true`).
-- [ ] Start from a fresh ledger (restart the server).
-- [ ] Show the browser URL bar, and the Render URL if deployed.
-- [ ] No real personal emails or credentials on screen. Use only Sandbox test accounts.
-- [ ] Under 3:00. Upload to YouTube as Public and paste the link into Devpost.
+## Scene list and narration (timecodes from the rendered file)
+
+| Time | Scene | Caption / narration |
+| :--- | :--- | :--- |
+| 0:00.0 | Title | Freelancers wait weeks for milestone payments, and buyers hate paying for work that doesn't run. |
+| 0:05.3 | Title | PayPilot Escrow puts an AI reviewer between PayPal's authorize and capture steps, so money moves only when the work is verified. |
+| 0:13.0 | 1 · Live app on Render | This is the live app on Render, connected to the real PayPal Sandbox. Every milestone is a PayPal Orders v2 order with intent AUTHORIZE. |
+| 0:22.2 | 1 · Live app on Render | The status card shows an OAuth token issued by the PayPal Sandbox, and the Gemini reviewer is configured. |
+| 0:28.3 | 1 · Live app on Render | Every row is labelled LIVE_SANDBOX or Replay, so simulated data is never passed off as a real PayPal transaction. |
+| 0:35.5 | 2 · Buyer funds a milestone | The buyer creates a new 275 dollar milestone hold. |
+| 0:39.4 | 2 · Buyer funds a milestone | PayPal returns a real order, and the milestone waits for the buyer's approval. |
+| 0:43.5 | 2 · Buyer approval on PayPal Sandbox | The approve button opens PayPal's own Sandbox checkout for that order, where the buyer logs in and approves. |
+| 0:49.4 | 2 · No approval, no hold | Until the buyer approves, PayPilot cannot authorize: PayPal answers ORDER_NOT_APPROVED, and nothing is held. |
+| 0:56.0 | 3 · Funds held in escrow | For this recording, we fund the next hold with PayPal's Sandbox test card instead of a buyer login. |
+| 1:01.3 | 3 · Funds held in escrow | It creates a real PayPal authorization. The 275 dollars are now locked, not captured. |
+| 1:07.5 | 4 · Freelancer delivers | The freelancer submits the deliverable: a FastAPI capture endpoint with unit tests, plus the test output. |
+| 1:14.1 | 4 · AI audit | Clicking Run AI Audit starts the reviewer. Deterministic guardrails parse the code and scan for leaked secrets and unsafe calls. |
+| 1:22.3 | 4 · Gemini reviewer reasoning | Then Gemini checks each acceptance criterion and explains its verdict with evidence from the code. |
+| 1:27.6 | 4 · Gemini reviewer reasoning | Both agree: auto-capture approved, at 98.6 percent confidence, above the 80 percent threshold. |
+| 1:34.4 | 5 · Capture | PayPilot captures the authorization. PayPal reports the capture as COMPLETED. |
+| 1:39.1 | 5 · Invoice | It then creates a PayPal invoice and records the payment against that capture, so the invoice is marked as paid. |
+| 1:45.4 | 5 · Settled | In the ledger, the milestone is now captured and settled. |
+| 1:48.8 | 6 · A bad deliverable | Now a stubbed deliverable on a new live hold: hard-coded return values, and a test that only asserts true. |
+| 1:55.1 | 6 · AI blocks the payout | The keyword guardrails alone would have passed it, but Gemini flags the fake code and the fake tests. |
+| 2:00.6 | 6 · AI blocks the payout | The AI can only make a decision stricter, never looser, so the money stays on hold. |
+| 2:05.5 | 6 · Void the hold | The buyer can void the authorization, which releases the hold in PayPal. |
+| 2:09.7 | 7 · Reconciliation ledger | Deliverables with a leaked key or an eval call are frozen for dispute review. This one is a clearly labelled replay record. |
+| 2:17.1 | 7 · Reconciliation ledger | The AG Grid ledger reconciles locked and settled amounts, and every live row carries its real PayPal IDs. |
+| 2:23.4 | 8 · Architecture | Under the hood: FastAPI on Render calls PayPal OAuth, Orders v2, Payments v2 and Invoicing v2. |
+| 2:31.3 | 8 · Architecture | The auditor combines Python AST checks, rule-based guardrails and Gemini, with a fallback chain of models. |
+| 2:38.3 | 9 · Impact | Freelancers get paid the moment work is verified. Buyers never pay for broken work. Every decision is explained. |
+| 2:45.0 | 9 · Impact | PayPilot Escrow. Open source under the MIT licence, and live on Render today. |
+
+## How to re-render
+
+1. `python demo/capture.py` (needs Playwright + Chromium) re-runs the live flow on Render and writes screenshots plus `run_log.json` (PayPal object IDs only; no credentials or tokens). Warm the free Render instance first (`/api/health`); cold start takes 30–60 s. Note: each run creates new Sandbox orders.
+2. `python demo/build.py 0.92` renders caption frames, the Piper voice-over and the final MP4 with ffmpeg (`0.92` = speech rate).
+
+## Upload checklist (owner action)
+
+- [ ] Watch the MP4 once end to end.
+- [ ] Upload to YouTube as **Public**, title e.g. "PayPilot Escrow — AI-verified milestone payments on PayPal (Sandbox demo)", and attach `paypilot_demo.en.srt` as English subtitles.
+- [ ] Paste the YouTube link into the Devpost submission.

@@ -1,0 +1,111 @@
+1
+00:00:00,000 --> 00:00:05,200
+Freelancers wait weeks for milestone payments, and buyers hate paying for work that doesn't run.
+
+2
+00:00:05,300 --> 00:00:12,900
+PayPilot Escrow puts an AI reviewer between PayPal's authorize and capture steps, so money moves only when the work is verified.
+
+3
+00:00:13,000 --> 00:00:22,100
+This is the live app on Render, connected to the real PayPal Sandbox. Every milestone is a PayPal Orders v2 order with intent AUTHORIZE.
+
+4
+00:00:22,200 --> 00:00:28,200
+The status card shows an OAuth token issued by the PayPal Sandbox, and the Gemini reviewer is configured.
+
+5
+00:00:28,300 --> 00:00:35,400
+Every row is labelled LIVE_SANDBOX or Replay, so simulated data is never passed off as a real PayPal transaction.
+
+6
+00:00:35,500 --> 00:00:39,300
+The buyer creates a new 275 dollar milestone hold.
+
+7
+00:00:39,400 --> 00:00:43,400
+PayPal returns a real order, and the milestone waits for the buyer's approval.
+
+8
+00:00:43,500 --> 00:00:49,300
+The approve button opens PayPal's own Sandbox checkout for that order, where the buyer logs in and approves.
+
+9
+00:00:49,400 --> 00:00:55,900
+Until the buyer approves, PayPilot cannot authorize: PayPal answers ORDER_NOT_APPROVED, and nothing is held.
+
+10
+00:00:56,000 --> 00:01:01,200
+For this recording, we fund the next hold with PayPal's Sandbox test card instead of a buyer login.
+
+11
+00:01:01,300 --> 00:01:07,400
+It creates a real PayPal authorization. The 275 dollars are now locked, not captured.
+
+12
+00:01:07,500 --> 00:01:14,000
+The freelancer submits the deliverable: a FastAPI capture endpoint with unit tests, plus the test output.
+
+13
+00:01:14,100 --> 00:01:22,200
+Clicking Run AI Audit starts the reviewer. Deterministic guardrails parse the code and scan for leaked secrets and unsafe calls.
+
+14
+00:01:22,300 --> 00:01:27,500
+Then Gemini checks each acceptance criterion and explains its verdict with evidence from the code.
+
+15
+00:01:27,600 --> 00:01:34,300
+Both agree: auto-capture approved, at 98.6 percent confidence, above the 80 percent threshold.
+
+16
+00:01:34,400 --> 00:01:39,000
+PayPilot captures the authorization. PayPal reports the capture as COMPLETED.
+
+17
+00:01:39,100 --> 00:01:45,300
+It then creates a PayPal invoice and records the payment against that capture, so the invoice is marked as paid.
+
+18
+00:01:45,400 --> 00:01:48,700
+In the ledger, the milestone is now captured and settled.
+
+19
+00:01:48,800 --> 00:01:55,000
+Now a stubbed deliverable on a new live hold: hard-coded return values, and a test that only asserts true.
+
+20
+00:01:55,100 --> 00:02:00,500
+The keyword guardrails alone would have passed it, but Gemini flags the fake code and the fake tests.
+
+21
+00:02:00,600 --> 00:02:05,400
+The AI can only make a decision stricter, never looser, so the money stays on hold.
+
+22
+00:02:05,500 --> 00:02:09,600
+The buyer can void the authorization, which releases the hold in PayPal.
+
+23
+00:02:09,700 --> 00:02:17,000
+Deliverables with a leaked key or an eval call are frozen for dispute review. This one is a clearly labelled replay record.
+
+24
+00:02:17,100 --> 00:02:23,300
+The AG Grid ledger reconciles locked and settled amounts, and every live row carries its real PayPal IDs.
+
+25
+00:02:23,400 --> 00:02:31,200
+Under the hood: FastAPI on Render calls PayPal OAuth, Orders v2, Payments v2 and Invoicing v2.
+
+26
+00:02:31,300 --> 00:02:38,200
+The auditor combines Python AST checks, rule-based guardrails and Gemini, with a fallback chain of models.
+
+27
+00:02:38,300 --> 00:02:44,900
+Freelancers get paid the moment work is verified. Buyers never pay for broken work. Every decision is explained.
+
+28
+00:02:45,000 --> 00:02:50,317
+PayPilot Escrow. Open source under the MIT licence, and live on Render today.
