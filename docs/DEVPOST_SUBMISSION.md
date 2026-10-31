@@ -2,27 +2,84 @@
 
 Hackathon: https://paypalaihackathon.devpost.com/
 Deadline: 12 Nov 2026, 12:00 pm PST = **Fri 13 Nov 2026, 04:00 (UTC+8)**
-Required: text description; a functional demo (hosted URL or complete run instructions); the AI tools used; a **public** GitHub/GitLab/Bitbucket repository with a visible licence; a public YouTube demo under 3 minutes.
+Paste-ready text for the Devpost form: [`DEVPOST_FINAL_PASTE.md`](DEVPOST_FINAL_PASTE.md).
 
-## Gaps to close before submitting (updated 31 Oct 2026, 12:15 UTC+8)
+## Links (all public)
 
-**Done and verified with real calls:**
-- **PayPal Sandbox** (30 Oct, ~19:58 and ~20:42 UTC+8). OAuth token; `intent=AUTHORIZE` order with the buyer approve link; `/authorize` refused with `ORDER_NOT_APPROVED` until the buyer approves; real authorization → `/capture`; invoice created, sent and recorded as paid (`MARKED_AS_PAID`); `/void` on dispute. Nothing is invented in live mode.
-- **AI requirement (Gemini).** The auditor calls Gemini through the OpenAI-compatible endpoint. Models actually used: **`gemini-3.5-flash`** or **`gemini-3.5-flash-lite`** (fallback chain). `gemini-2.5-flash` is tried first but returns 404 ("no longer available to new users"), and the fallback is recorded in every verdict. Gemini returns per-criterion reasons, evidence and risk flags, and it can only make the decision stricter. Evidence from the 30 Oct ~20:42 UTC+8 run is in `docs/sandbox_gemini_e2e_results.json`:
-  - real deliverable → Gemini approves → PayPal capture → invoice `MARKED_AS_PAID`;
-  - stubbed, keyword-stuffed deliverable → keyword guardrails approve, **Gemini flags fake tests (high) and escalates** → no capture, hold kept, then voided;
-  - hard-coded secret plus syntax error → both escalate → hold voided.
-- **Real buyer login and approval on the live app (31 Oct 2026, ~00:25 UTC+8).** Milestone **MS-1010**, $275.00: the buyer logged in to PayPal Sandbox with a Sandbox personal account and approved order `53K375713X218770W` (`payment_source: paypal`). PayPal redirected back to PayPilot, which authorized it (`27H081894V8641109`). Gemini (`gemini-3.5-flash-lite`) returned `AUTO_CAPTURE_APPROVED` at 98.6%, then PayPilot captured `07944841D8062892J` (`COMPLETED`) and invoice `INV2-DENG-MAU8-5A2E-J4VN` was recorded as paid (`MARKED_AS_PAID`). The order, authorization, capture and invoice states were re-checked with read-only PayPal API calls on 31 Oct ~12:10 UTC+8: `docs/render_live_buyer_approval_results.json`, screenshots `docs/screenshots/live_01_dashboard.png` and `live_03_released.png`. (`live_02_paypal_error_cannot_pay_self.png` shows PayPal's `CANNOT_PAY_SELF` page from the first attempt, when the merchant account was used as the buyer.)
-- **Demo video recorded (31 Oct 2026, ~11:55 UTC+8).** `demo/paypilot_demo.mp4`, 2:50, 1080p, English voice-over and captions (`demo/paypilot_demo.en.srt`), recorded on the live Render app against the real Sandbox: MS-1008 order `6UV35299MM8519423` refused with `ORDER_NOT_APPROVED` before approval; MS-1009 test-card authorization `83297955U0548854K` → Gemini 98.6% → capture `3RN795234W837005T` → invoice `INV2-MPEX-SJC6-DNHX-TAKA` `MARKED_AS_PAID`; MS-1010 stub held by Gemini and voided. Details: `docs/DEMO_VIDEO_SCRIPT.md`, `demo/demo_run_log.json`. (The ledger is in memory and restarts with each deploy, so MS-10xx numbers repeat across runs; the PayPal IDs are unique.)
-- **Labelling.** Replay mode shows "Replay (simulated)" with `SIM-` IDs. The KPI card names the active AI reviewer model, and the dashboard has an **AI Reviewer Reasoning** panel.
-- **Tests.** 28/28 pass with PayPal and Gemini credentials. Without credentials: 21 pass, 7 live tests skipped.
+| What | URL |
+|---|---|
+| Demo video (YouTube, public, 2:50) | https://youtu.be/kL-quH7Iu8U |
+| Hosted demo (Render, live PayPal Sandbox + Gemini) | https://paypilot-escrow-ai.onrender.com |
+| Source (MIT) | https://github.com/W1nnnd/paypilot-escrow |
 
-**Still open:**
-1. **Buyer approval with a real Sandbox buyer login: done** (MS-1010, see above).
-2. **Screenshots: done.** `docs/screenshots/01`–`05` were retaken from the live app on 31 Oct 2026 (live Sandbox rows, AI Reviewer Reasoning panel).
-3. **Repository.** Published (public, MIT): https://github.com/W1nnnd/paypilot-escrow.
-4. **Hosted demo: done.** https://paypilot-escrow-ai.onrender.com is a Render free web service in Singapore (deployed from `main` via the Render API; GitHub is not linked, so each push needs a manual redeploy), running live PayPal Sandbox and Gemini. A test-card run on 31 Oct 2026 at ~00:01 UTC+8 is in `docs/render_live_e2e_results.json`: real deliverable → Gemini approves → capture `1KS51027F59380236` → invoice `INV2-XUPD-JTWV-PTSK-BJH6` `MARKED_AS_PAID`; the stubbed deliverable was held by Gemini and then voided; the deliverable with a hard-coded secret was escalated and voided. Note: the free tier sleeps when idle, so the first request takes ~30–60 s, and the in-memory ledger resets on restart.
-5. **Video: recorded, not yet uploaded.** `demo/paypilot_demo.mp4` (2:50). Owner action: upload to YouTube as Public (attach `demo/paypilot_demo.en.srt`) and paste the link below.
+The Render free tier sleeps when idle: the first request can take ~30–60 s. The ledger is in memory, so a restart shows only the four seed rows. They are labelled **Replay (simulated)**.
+
+## Requirement checklist
+
+| Devpost requirement | Where it is met |
+|---|---|
+| Meaningful PayPal integration | Orders v2 `intent=AUTHORIZE` + buyer approval, Payments v2 capture/void, Invoicing v2 create/send/record-payment (`backend/paypal_client.py`, `backend/app.py`) |
+| Meaningful AI | Gemini reviewer that decides whether escrowed money can be captured (`backend/auditor_agent.py`) |
+| Working, runnable build | Hosted URL above, plus `README.md` → *Run & test* (`pytest -q`: 28/28 with credentials, 21 pass + 7 live skipped without) |
+| Tools named and explained | "AI tools used" section below |
+| Public repo with a visible licence | MIT, `LICENSE` at the repo root |
+| Public YouTube video < 3 min | https://youtu.be/kL-quH7Iu8U (2:50) |
+
+---
+
+## Prize tracks we are targeting
+
+The project is entered for the overall prizes. It was designed with three special prizes in mind. Each claim below points to code or evidence in this repo.
+
+### 1. Best Use of AG Grid
+
+AG Grid Community 31.3 is the main working surface of the app. It is the escrow **and** reconciliation ledger, not a decorative table. Concretely (`frontend/index.html`):
+
+- **One row per PayPal escrow.** Every milestone row carries the real PayPal object chain: Order ID → Authorization ID → Capture ID → Invoice ID. A judge can copy any ID from the grid and look it up in the PayPal Sandbox.
+- **State-aware cells.** `cellStyle` colours the *PayPal Escrow State* column by lifecycle: `ESCROW_AUTHORIZED` blue, `CAPTURED_SETTLED` green, `HOLD_FOR_REVISION`/`DISPUTE_FROZEN` amber, `VOIDED` grey. `valueFormatter` renders currency amounts and the AI confidence score ("98.6%" or "Pending").
+- **Honesty column.** *Data Source* uses a formatter + style to show **PayPal Sandbox (live)** vs *Replay (simulated)* per row, so simulated data can never be mistaken for a real transaction.
+- **Pinned ID column** (`pinned: "left"`) keeps the milestone ID visible while scrolling across the four PayPal ID columns.
+- **Sort, filter and resize** on every column (`defaultColDef`), plus a **quick filter** (`quickFilterText`) that matches order IDs, contract names, e-mails and statuses. The video uses it to isolate `DISPUTE_FROZEN` rows (screenshot `04_grid_filter_dispute_frozen.png`).
+- **Grid drives the workflow.** `onRowClicked` selects that milestone in the action panel (approve, authorize, audit, void), so the grid is how an operator picks what to act on.
+- **Live updates.** After every PayPal call the grid is refreshed with `setGridOption("rowData", …)` and the KPI cards (locked vs settled totals) are recomputed from the same data.
+- **Reconciliation export.** `exportDataAsCsv` downloads `PayPilot_Escrow_Ledger_2026.csv` with all PayPal IDs for finance or bookkeeping.
+
+### 2. Best Use of PayPal + AI
+
+PayPal and AI are not side by side here; the AI sits **inside** the PayPal payment lifecycle and decides when money moves.
+
+| Step | PayPal API | Role of AI |
+|---|---|---|
+| Lock funds | `POST /v2/checkout/orders` (`intent=AUTHORIZE`), buyer approves on PayPal, then `POST /v2/checkout/orders/{id}/authorize` | — (funds are held, not captured) |
+| Review | — | Gemini reads the acceptance criteria, the deliverable and the evidence, and returns strict JSON: per-criterion `met`/reason/evidence, risk flags, recommended decision, confidence |
+| Release | `POST /v2/payments/authorizations/{id}/capture` | Only if guardrails **and** Gemini approve and confidence ≥ the contract threshold (80% default) |
+| Receipt | `POST /v2/invoicing/invoices` → `/send` → `/payments` | The audit summary is written into the invoice note, which is recorded as paid against the capture ID |
+| Refuse | Hold kept, or `POST /v2/payments/authorizations/{id}/void` | `HOLD_FOR_REVISION` or `ESCALATE_DISPUTE` keeps money with the buyer |
+
+Safety design that makes it credible for real money:
+- **The AI can only make the decision stricter.** Final decision = the stricter of deterministic guardrails (Python AST, secret and `eval()` scans, criteria matching, test pass rate) and Gemini. Gemini's "approve" counts only if every criterion is met and there is no high-severity flag. An LLM error or invalid JSON blocks auto-capture.
+- **Prompt-injection hardened.** The deliverable is passed as untrusted data, and the reviewer is told to ignore instructions inside it.
+- **Explainable.** The *AI Reviewer Reasoning* panel shows the model actually used, its decision, and the reason and evidence for each criterion.
+- **Model fallback is recorded.** `gemini-2.5-flash` → `gemini-3.5-flash` → `gemini-3.5-flash-lite`. The model used is stored in every verdict.
+
+Verified with real calls (evidence files in `docs/`):
+- `render_live_buyer_approval_results.json`: MS-1010, $275. A Sandbox buyer logged in and approved order `53K375713X218770W` → authorization `27H081894V8641109` → Gemini `AUTO_CAPTURE_APPROVED` 98.6% → capture `07944841D8062892J` `COMPLETED` → invoice `INV2-DENG-MAU8-5A2E-J4VN` `MARKED_AS_PAID`. Re-checked with read-only PayPal API calls on 31 Oct 2026.
+- `sandbox_gemini_e2e_results.json`: a keyword-stuffed stub passed the keyword guardrails, but **Gemini flagged fake tests (high) and escalated**, so nothing was captured and the hold was voided. A deliverable with a hard-coded secret and a syntax error was escalated and voided.
+- In live mode any PayPal error is returned as HTTP 502 with PayPal's error name and `debug_id`; nothing is faked.
+
+### 3. Best Demo Delivery
+
+- **Video:** https://youtu.be/kL-quH7Iu8U (2:50, 1080p, English voice-over and burned-in captions, no music). It was recorded on the **live Render deployment** against the **real PayPal Sandbox**. Story: problem (0:00) → live app (0:13) → buyer funds a milestone and PayPal refuses `/authorize` until approval (0:35) → funds held (0:56) → AI audit with Gemini reasoning (1:07) → capture + paid invoice (1:34) → stub deliverable blocked by Gemini and hold voided (1:48) → AG Grid reconciliation (2:09) → architecture (2:23) → impact (2:38). Every PayPal ID on screen is real (`docs/DEMO_VIDEO_SCRIPT.md`, `demo/demo_run_log.json`).
+- **Shown honestly:** the video says that it uses PayPal's Sandbox test card instead of a buyer login for one hold, and it labels the dispute example as a replay record.
+- **Judges can repeat it in about two minutes** at https://paypilot-escrow-ai.onrender.com:
+  1. Pick *Sandbox test card* (PayPal authorizes immediately) or *Buyer approves on PayPal* (approve with a Sandbox personal account, then **I approved — authorize now**) and click **+ New AUTHORIZE Hold**.
+  2. Click **Load real deliverable** → **Run AI Audit & Trigger PayPal Capture** → watch the capture and invoice appear in the grid.
+  3. Create another hold, **Load stubbed deliverable** → **Run AI Audit & Trigger PayPal Capture** → Gemini holds it → **Void Hold**.
+  4. Use the grid's quick filter, then **Export Ledger CSV**.
+
+Also relevant: **Best Use of Render**. The live app runs as a Render web service from `render.yaml` (Blueprint, health check `/api/health`, secrets only in Render env vars).
+
+---
 
 ## Project name
 
@@ -30,27 +87,11 @@ PayPilot Escrow
 
 ## Tagline (≤200 chars)
 
-AI-verified milestone escrow on PayPal: funds are authorized up front, an AI auditor checks the deliverable against the contract, and PayPal captures and invoices automatically when it passes.
+AI-verified milestone escrow on PayPal: funds are authorized up front, Gemini audits the deliverable against the contract, and PayPal captures and invoices only when it passes.
 
-## Description (Markdown)
+## Description
 
-### Inspiration
-Freelance and micro-SaaS work stalls on trust. Buyers won't pay before the code works, and freelancers wait weeks for milestone sign-off. PayPal already offers a two-step payment, authorize now and capture later. We put an AI auditor between those two steps.
-
-### What it does
-- **Lock funds.** Each milestone is a PayPal Orders v2 order with `intent=AUTHORIZE`. The buyer approves it on PayPal; PayPilot then calls `/authorize` and the funds are held.
-- **Audit the deliverable.** When the freelancer submits code or an API spec, the Deliverable Auditor checks it against each acceptance criterion: AST syntax, required endpoints and tests, leaked secrets, `eval()`, and the test pass rate. Google Gemini (`gemini-3.5-flash`) then reads the deliverable and evidence and returns a reasoned, per-criterion verdict with risk flags. It can block or escalate a payout, but it can never approve one the guardrails rejected. Output: confidence score, risk score and a decision (`AUTO_CAPTURE_APPROVED`, `HOLD_FOR_REVISION` or `ESCALATE_DISPUTE`).
-- **Settle automatically.** At or above the contract threshold (80% by default), PayPilot calls `POST /v2/payments/authorizations/{id}/capture`, then creates a PayPal invoice with the audit attached and records it as paid. Below it, funds stay held: revise or escalate. A disputed hold can be voided back to the buyer. The AI can release money but can't force a payout.
-- **Reconcile.** An AG Grid workbench shows each milestone's status, AI score and PayPal IDs, with quick filters, a timeline and CSV export.
-
-### How we built it
-FastAPI and Pydantic back end. PayPal REST: OAuth2 client credentials, Orders v2 (authorize intent + buyer approval redirect), Payments v2 capture/void, Invoicing v2 (create, send, record payment). The auditor is Python `ast` + rule checks + a Gemini verdict over the OpenAI-compatible API (strict JSON, prompt-injection-hardened, strict-only merging). The front end is a single page with AG Grid Community 31. It deploys to Render with `render.yaml`. A zero-config **Replay mode** lets judges try the UI without credentials. It is clearly labelled and makes no PayPal calls.
-
-### Challenges
-Modelling escrow on PayPal's authorize/capture lifecycle (authorization validity and honor periods), and keeping the AI's power bounded: it can only release funds, and every decision is explainable per criterion.
-
-### What's next
-Partial captures for multi-part milestones, automatic `void` on dispute timeout, re-authorization before the honor period ends, webhook-driven state (`PAYMENT.CAPTURE.COMPLETED`), and buyer/freelancer views.
+See [`DEVPOST_FINAL_PASTE.md`](DEVPOST_FINAL_PASTE.md). It holds the exact Markdown for the Devpost "About the project" field, including the prize-track paragraphs above in a shorter form.
 
 ## Built with
 
@@ -58,21 +99,21 @@ python · fastapi · pydantic · httpx · paypal-orders-v2 · paypal-payments-v2
 
 ## AI tools used (required field)
 
-- Inside the product: Google Gemini `gemini-3.5-flash` via the Gemini API's OpenAI-compatible endpoint. It reads the deliverable, the acceptance criteria and any evidence, and returns a structured verdict (per-criterion met/reason/evidence, risk flags, recommended decision). That verdict is combined with deterministic AST and security checks, and it can only make the decision stricter.
+- Inside the product: Google Gemini (`gemini-3.5-flash`, fallback `gemini-3.5-flash-lite`) via the Gemini API's OpenAI-compatible endpoint. It reads the deliverable, the acceptance criteria and the evidence, and returns a structured verdict (per-criterion met/reason/evidence, risk flags, recommended decision, confidence). The verdict is merged with deterministic AST and security checks, and it can only make the decision stricter. It decides whether a PayPal authorization is captured, held or voided.
 - During development: an AI coding assistant helped write the code, tests and docs.
-
-## Links
-
-- Repository: https://github.com/W1nnnd/paypilot-escrow
-- Hosted demo: https://paypilot-escrow-ai.onrender.com (live PayPal Sandbox + Gemini; Replay rows are labelled)
-- Video: YouTube link (to add after upload; file `demo/paypilot_demo.mp4`, script `docs/DEMO_VIDEO_SCRIPT.md`)
 
 ## Screenshots (gallery)
 
-`docs/screenshots/01_dashboard_initial.png`, `02_ledger_after_e2e.png`, `03_ai_audit_auto_capture.png`, `04_grid_filter_dispute_frozen.png`, `05_new_authorize_hold.png` (live app, 31 Oct 2026), plus `live_03_released.png` (MS-1010 settled after the real buyer approval)
+`docs/screenshots/01_dashboard_initial.png`, `02_ledger_after_e2e.png`, `03_ai_audit_auto_capture.png`, `04_grid_filter_dispute_frozen.png`, `05_new_authorize_hold.png` (live app, 31 Oct 2026), plus `live_03_released.png` (MS-1010 settled after the real buyer approval).
 
-## Deploying to Render (what's needed)
+## Verification log
 
-- A Render account. Either connect GitHub in the Render dashboard (Blueprint → pick the repo; `render.yaml` defines the free Python web service), or use a Render API key for CLI/API deploys. Render deploys from a Git repo, so the public GitHub repo has to exist first.
-- Environment variables in Render: `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` (Sandbox REST app), `GEMINI_API_KEY`, and optionally `PUBLIC_BASE_URL` (defaults to Render's `RENDER_EXTERNAL_URL`) and `AUDITOR_LLM_MODEL`. Never commit them.
-- PayPal Sandbox personal (buyer) and business (seller) test accounts, used to approve orders in the demo.
+- **PayPal Sandbox** (30 Oct 2026, ~19:58 and ~20:42 UTC+8): OAuth; `intent=AUTHORIZE` order; `/authorize` refused with `ORDER_NOT_APPROVED` before approval; real authorization → capture; invoice created, sent, `MARKED_AS_PAID`; `/void` on dispute.
+- **Real buyer login on the live app** (31 Oct 2026, ~00:25 UTC+8): MS-1010, see above. `live_02_paypal_error_cannot_pay_self.png` shows PayPal's `CANNOT_PAY_SELF` page from a first attempt that used the merchant account as the buyer.
+- **Hosted test-card run** (31 Oct 2026, ~00:01 UTC+8): `docs/render_live_e2e_results.json`: capture `1KS51027F59380236` → invoice `INV2-XUPD-JTWV-PTSK-BJH6` `MARKED_AS_PAID`; the stub was held and voided; the secret-leak deliverable was escalated and voided.
+- **Video** recorded 31 Oct 2026 (~11:55 UTC+8) and uploaded publicly to YouTube.
+- **Tests:** 28/28 with PayPal and Gemini credentials; without credentials 21 pass and 7 live tests are skipped.
+
+## Deploying to Render
+
+Render Blueprint (`render.yaml`, free Python web service). Set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `GEMINI_API_KEY` (optional `PUBLIC_BASE_URL`, `AUDITOR_LLM_MODEL`) as Render environment variables; never commit them. The current service is deployed from `main` through the Render API (GitHub auto-deploy is not linked).

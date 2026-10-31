@@ -2,10 +2,21 @@
 
 Built for the **PayPal AI Hackathon** (Devpost).
 
-**Live demo:** https://paypilot-escrow-ai.onrender.com (PayPal Sandbox + Gemini, Render free tier; the first request after idle can take ~30–60 s). Evidence from a hosted run: [`docs/render_live_e2e_results.json`](docs/render_live_e2e_results.json). Buyers lock a milestone payment with a PayPal
+**Live demo:** https://paypilot-escrow-ai.onrender.com · **Demo video (2:50):** https://youtu.be/kL-quH7Iu8U (PayPal Sandbox + Gemini, Render free tier; the first request after idle can take ~30–60 s). Evidence from a hosted run: [`docs/render_live_e2e_results.json`](docs/render_live_e2e_results.json). Buyers lock a milestone payment with a PayPal
 **authorization**; an auditor agent checks the freelancer's deliverable against the contract's acceptance
 criteria; PayPal **captures** the funds and issues an **invoice** only when the audit passes. Otherwise the
 authorization stays on hold, or is **voided** back to the buyer.
+
+## Prize tracks
+
+Entered for the overall prizes, with these special prizes in mind (details and evidence: [`docs/DEVPOST_SUBMISSION.md`](docs/DEVPOST_SUBMISSION.md#prize-tracks-we-are-targeting)):
+
+| Prize | What to look at |
+|---|---|
+| **Best Use of PayPal + AI** | Gemini decides whether a PayPal authorization is captured, held or voided. Orders v2 `AUTHORIZE` → buyer approval → `/authorize`; Payments v2 capture/void; Invoicing v2 create/send/record-payment. The AI can only make the decision stricter. Real Sandbox evidence: `docs/render_live_buyer_approval_results.json`, `docs/sandbox_gemini_e2e_results.json`. |
+| **Best Use of AG Grid** | The escrow and reconciliation ledger (`frontend/index.html`): one row per escrow with the full PayPal ID chain, lifecycle-coloured state cells, live/replay data-source column, pinned ID, quick filter, row click → action panel, live refresh after each PayPal call, CSV export. |
+| **Best Demo Delivery** | [2:50 video](https://youtu.be/kL-quH7Iu8U) recorded on the live Render app against the real Sandbox, and the [hosted demo](https://paypilot-escrow-ai.onrender.com): judges can repeat the flow in about 2 minutes with the Sandbox test-card option. |
+| Best Use of Render | Runs as a Render web service from `render.yaml` (health check, secrets in env vars only). |
 
 ## How the PayPal flow works (live Sandbox mode)
 
