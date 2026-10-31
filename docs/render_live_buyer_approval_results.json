@@ -1,0 +1,46 @@
+{
+  "verified_at_utc": "2026-10-31T04:10:43+00:00",
+  "how": "Read-only GET calls to api-m.sandbox.paypal.com (Orders v2, Payments v2, Invoicing v2) after the live run on https://paypilot-escrow-ai.onrender.com. No credentials or payer personal data are stored here.",
+  "milestone_id": "MS-1010",
+  "run": "31 Oct 2026 ~00:25 UTC+8 (30 Oct 16:25 UTC), buyer logged in to PayPal Sandbox with a Sandbox personal account and approved",
+  "order": {
+    "id": "53K375713X218770W",
+    "intent": "AUTHORIZE",
+    "status": "COMPLETED",
+    "payment_source": [
+      "paypal"
+    ],
+    "custom_id": "MS-1010",
+    "reference_id": "CTR-2026-301:MS-1010",
+    "amount": {
+      "currency_code": "USD",
+      "value": "275.00"
+    }
+  },
+  "authorization": {
+    "id": "27H081894V8641109",
+    "status": "CAPTURED"
+  },
+  "capture": {
+    "id": "07944841D8062892J",
+    "status": "COMPLETED",
+    "amount": {
+      "currency_code": "USD",
+      "value": "275.00"
+    }
+  },
+  "invoice": {
+    "id": "INV2-DENG-MAU8-5A2E-J4VN",
+    "status": "MARKED_AS_PAID",
+    "invoice_number": "PP-MS-1010-1A858E",
+    "recorded_payment_ids": [
+      "EXTR-3A342933F6141980G"
+    ]
+  },
+  "ai_audit_reported_by_app": {
+    "decision": "AUTO_CAPTURE_APPROVED",
+    "confidence_pct": 98.6,
+    "model": "gemini-3.5-flash-lite",
+    "note": "Taken from the app's audit response in that session (see docs/screenshots/live_03_released.png); not re-queryable from PayPal."
+  }
+}
