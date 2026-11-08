@@ -84,6 +84,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(300); shot(page, "s10_reviewing")
     out = ri.value.json(); LOG["B_settle_s"] = round(time.time()-t0,1)
     LOG["B_settle"] = {"decision": out["audit_report"]["decision"], "confidence": out["audit_report"]["confidence_score"],
+        "score_details": out["audit_report"].get("score_details"),
         "guardrail": out["audit_report"]["guardrail_decision"], "model": out["audit_report"]["llm_review"].get("model"),
         "llm_decision": out["audit_report"]["llm_review"].get("recommended_decision"),
         "capture": out.get("paypal_capture"), "invoice": out.get("paypal_invoice"), "invoice_error": out.get("paypal_invoice_error"),
@@ -112,7 +113,7 @@ with sync_playwright() as p:
     point(page, run)
     with page.expect_response(lambda r: "verify-and-settle" in r.url, timeout=120000) as ri: run.click()
     out = ri.value.json()
-    LOG["C_settle"] = {"decision": out["audit_report"]["decision"], "guardrail": out["audit_report"]["guardrail_decision"],
+    LOG["C_settle"] = {"score_details": out["audit_report"].get("score_details"), "decision": out["audit_report"]["decision"], "guardrail": out["audit_report"]["guardrail_decision"],
         "llm_decision": out["audit_report"]["llm_review"].get("recommended_decision"), "model": out["audit_report"]["llm_review"].get("model"),
         "capture": out.get("paypal_capture"), "status": out["milestone"]["escrow_status"]}
     page.wait_for_timeout(1800); hide(page)

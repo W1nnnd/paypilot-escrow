@@ -269,7 +269,7 @@ def test_malformed_verdict_can_fall_back_to_valid_model(monkeypatch):
 def test_subthreshold_score_is_not_rounded_up_in_report(monkeypatch):
     rep = _audit(_reviewer(monkeypatch, _chat(_verdict(conf=79.99))))
     assert rep.confidence_score == 79.99
-    assert "79.99%" in rep.summary
+    assert "79.99/100" in rep.summary
     assert rep.auto_release_eligible is False
 
 
@@ -279,3 +279,76 @@ def test_guardrail_mean_does_not_round_up_across_threshold(monkeypatch, rate):
     assert rep.confidence_score < 100
     assert rep.guardrail_decision == "HOLD_FOR_REVISION"
     assert rep.auto_release_eligible is False
+
+
+@pytest.mark.parametrize("decision", ["HOLD_FOR_REVISION", "ESCALATE_DISPUTE"])
+def test_confident_rejection_has_no_approval_score(monkeypatch, decision):
+    rep = _audit(_reviewer(monkeypatch, _chat(_verdict(rec=decision, conf=100))))
+    assert rep.decision == decision and rep.auto_release_eligible is False
+    assert rep.confidence_score == 99.6  # Existing numeric API and policy are unchanged.
+    assert rep.risk_score == 0.4
+    scores = rep.score_details
+    assert scores['approval_gate_score'] is None
+    assert scores['approval_gate_basis'] == 'BLOCKED'
+    assert scores['model_decision_confidence'] == 100
+    assert scores['model_confidence_for'] == decision
+    assert scores['model_confidence_basis'] == 'MODEL_RECOMMENDED_DECISION'
+    assert scores['semantics_version'] == '1.0'
+    assert 'not delivery quality' in rep.summary
+    assert '99.6' not in rep.summary and '0.4' not in rep.summary
+
+
+@pytest.mark.parametrize("verdict", [
+    _verdict(met=(True, False), conf=100),
+    _verdict(met=(True,), conf=100),
+    _verdict(flags=[{'flag':'unsafe','severity':'high','detail':'unsafe'}], conf=100),
+])
+def test_normalized_rejection_keeps_confidence_tied_to_original_recommendation(monkeypatch, verdict):
+    rep = _audit(_reviewer(monkeypatch, _chat(verdict)))
+    assert rep.llm_review['model_recommended_decision'] == 'AUTO_CAPTURE_APPROVED'
+    assert rep.llm_review['recommended_decision'] != 'AUTO_CAPTURE_APPROVED'
+    assert rep.score_details['model_confidence_for'] == 'AUTO_CAPTURE_APPROVED'
+    assert rep.score_details['approval_gate_score'] is None
+    assert rep.auto_release_eligible is False
+
+
+@pytest.mark.parametrize("require_llm", [True, False])
+def test_missing_reviewer_score_semantics_distinguish_live_and_replay(require_llm):
+    rep = _audit(LLMReviewer(), require_llm=require_llm)
+    scores = rep.score_details
+    assert scores['model_decision_confidence'] is None
+    assert scores['model_confidence_for'] is None
+    assert scores['approval_gate_basis'] == ('BLOCKED' if require_llm else 'REPLAY_GUARDRAILS_ONLY')
+    assert scores['approval_gate_score'] == (None if require_llm else 99.6)
+
+
+def test_model_error_has_no_confidence_or_approval_score(monkeypatch):
+    rep = _audit(_reviewer(monkeypatch, lambda _: httpx.Response(500)))
+    assert rep.score_details['model_decision_confidence'] is None
+    assert rep.score_details['approval_gate_score'] is None
+    assert rep.auto_release_eligible is False
+
+
+@pytest.mark.parametrize('confidence', [79.99, 80, 100])
+def test_approving_model_preserves_exact_gate_and_threshold(monkeypatch, confidence):
+    rep = _audit(_reviewer(monkeypatch, _chat(_verdict(conf=confidence))))
+    assert rep.score_details['approval_gate_score'] == min(99.6, confidence)
+    assert rep.score_details['approval_gate_threshold'] == 80
+    assert rep.score_details['approval_gate_basis'] == 'RULES_AND_MODEL'
+    assert rep.auto_release_eligible is (confidence >= 80)
+
+
+def test_guardrail_dispute_has_no_approval_gate_despite_model_approval(monkeypatch):
+    rep = _audit(_reviewer(monkeypatch, _chat(_verdict(conf=100))), content=BAD_DELIVERABLE)
+    assert rep.decision == 'ESCALATE_DISPUTE'
+    assert rep.score_details['approval_gate_score'] is None
+    assert rep.auto_release_eligible is False
+
+
+def test_model_prompt_defines_new_confidence_semantics_and_ignores_supplied_metadata(monkeypatch):
+    assert 'confidence in your recommended_decision' in LLMReviewer.SYSTEM_PROMPT
+    verdict = _verdict(rec='HOLD_FOR_REVISION', conf=100)
+    verdict.update(confidence_basis='QUALITY', model_recommended_decision='AUTO_CAPTURE_APPROVED')
+    rep = _audit(_reviewer(monkeypatch, _chat(verdict)))
+    assert rep.llm_review['confidence_basis'] == 'MODEL_RECOMMENDED_DECISION'
+    assert rep.llm_review['model_recommended_decision'] == 'HOLD_FOR_REVISION'

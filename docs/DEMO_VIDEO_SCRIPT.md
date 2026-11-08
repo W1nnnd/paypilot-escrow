@@ -3,6 +3,12 @@
 **Rendered file:** `demo/paypilot_demo.mp4` — 1920×1080, 30 fps, H.264 + AAC, **2:50** (hard limit 3:00). English captions are burned in; a matching subtitle file is `demo/paypilot_demo.en.srt`.
 **Voice-over:** offline TTS (Piper, `en_US-ryan-high` voice). No music, no third-party logos beyond the PayPal Sandbox checkout page itself.
 
+**Historical recording, not the current UI.** This preserves the narration and labels recorded on October 31.
+Since 1.3.1, the dashboard shows the final Audit Decision instead of "AI Score". Self-reported model confidence
+is tied to its original recommendation, not delivery quality; a confident rejection has no applicable approval
+gate score. Older "confidence" labels and percentages in the recording are legacy diagnostics, not calibrated
+probabilities. The recording's broad safety claims are not production guarantees; this is a Sandbox-only prototype.
+
 ## What was recorded
 
 All app footage is headless Chromium (Playwright) screenshots of the **live Render deployment** (`https://paypilot-escrow-ai.onrender.com`) against the **real PayPal Sandbox**, taken on 31 Oct 2026 (~11:55 UTC+8). Every PayPal ID shown comes from that run:

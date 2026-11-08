@@ -36,7 +36,7 @@ The project is entered for the overall prizes. It was designed with three specia
 AG Grid Community 31.3 is the main working surface of the app. It is the escrow **and** reconciliation ledger, not a decorative table. Concretely (`frontend/index.html`):
 
 - **One row per PayPal escrow.** Live Sandbox rows carry the PayPal object chain; Replay rows use SIM-prefixed IDs: Order ID → Authorization ID → Capture ID → Invoice ID. A judge can copy any Sandbox transaction ID from the grid and look it up in the PayPal Sandbox.
-- **State-aware cells.** `cellStyle` colours the *PayPal Escrow State* column by lifecycle: `ESCROW_AUTHORIZED` blue, `CAPTURED_SETTLED` green, `HOLD_FOR_REVISION`/`DISPUTE_FROZEN` amber, `VOIDED` grey. `valueFormatter` renders currency amounts and the AI confidence score ("98.6%" or "Pending").
+- **State-aware cells.** `cellStyle` colours the *PayPal Escrow State* column by lifecycle: `ESCROW_AUTHORIZED` blue, `CAPTURED_SETTLED` green, `HOLD_FOR_REVISION`/`DISPUTE_FROZEN` amber, `VOIDED` grey. `valueFormatter` renders currency amounts. The *Audit Decision* column shows the final verdict, not a misleading quality percentage; model self-reported confidence is separately tied to its original recommendation in the review panel.
 - **Honesty column.** *Data Source* uses a formatter + style to show **PayPal Sandbox (live)** vs *Replay (simulated)* per row, to distinguish simulated rows from Sandbox API records.
 - **Pinned ID column** (`pinned: "left"`) keeps the milestone ID visible while scrolling across the four PayPal ID columns.
 - **Sort, filter and resize** on every column (`defaultColDef`), plus a **quick filter** (`quickFilterText`) that matches order IDs, contract names, e-mails and statuses. The video uses it to isolate `DISPUTE_FROZEN` rows (screenshot `04_grid_filter_dispute_frozen.png`).
@@ -51,8 +51,8 @@ PayPal and AI are not side by side here; the AI sits **inside** the PayPal payme
 | Step | PayPal API | Role of AI |
 |---|---|---|
 | Lock funds | `POST /v2/checkout/orders` (`intent=AUTHORIZE`), buyer approves on PayPal, then `POST /v2/checkout/orders/{id}/authorize` | — (funds are held, not captured) |
-| Review | — | Gemini reads the acceptance criteria, the deliverable and the evidence, and returns strict JSON: per-criterion `met`/reason/evidence, risk flags, recommended decision, confidence |
-| Release | `POST /v2/payments/authorizations/{id}/capture` | Only if guardrails **and** Gemini approve and the merged score meets the server minimum of 80%; a request may raise but cannot lower it |
+| Review | — | Gemini reads the acceptance criteria, the deliverable and the evidence, and returns strict JSON: per-criterion `met`/reason/evidence, risk flags, recommended decision, self-reported decision confidence |
+| Release | `POST /v2/payments/authorizations/{id}/capture` | Only if guardrails **and** Gemini approve and the approval gate meets the server minimum of 80/100; a request may raise but cannot lower it |
 | Receipt | `POST /v2/invoicing/invoices` → `/send` → `/payments` | The audit summary is written into the invoice note, which is recorded as paid against the capture ID |
 | Refuse | Hold kept, or `POST /v2/payments/authorizations/{id}/void` | `HOLD_FOR_REVISION` or `ESCALATE_DISPUTE` keeps money with the buyer |
 
@@ -99,7 +99,7 @@ python · fastapi · pydantic · httpx · paypal-orders-v2 · paypal-payments-v2
 
 ## AI tools used (required field)
 
-- Inside the product: Google Gemini (`gemini-3.5-flash`, fallback `gemini-3.5-flash-lite`) via the Gemini API's OpenAI-compatible endpoint. It reads the deliverable, the acceptance criteria and the evidence, and returns a structured verdict (per-criterion met/reason/evidence, risk flags, recommended decision, confidence). The verdict is merged with deterministic AST and security checks, and it can only make the decision stricter. It gates capture or a hold/dispute state; void is a separate operator action.
+- Inside the product: Google Gemini (`gemini-3.5-flash`, fallback `gemini-3.5-flash-lite`) via the Gemini API's OpenAI-compatible endpoint. It reads the deliverable, the acceptance criteria and the evidence, and returns a structured verdict (per-criterion met/reason/evidence, risk flags, recommended decision, self-reported decision confidence). Confidence is not delivery quality; a confident rejection has no applicable approval gate score. The verdict is merged with deterministic AST and security checks, and it can only make the decision stricter. It gates capture or a hold/dispute state; void is a separate operator action.
 - During development: an AI coding assistant helped write the code, tests and docs.
 
 ## Screenshots (gallery)

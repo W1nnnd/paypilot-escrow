@@ -28,6 +28,10 @@ The **Decision & Evidence** panel shows the final decision separately from the m
 payment state. Its downloadable JSON report includes source/evidence SHA-256 fingerprints, criteria,
 reviewer results and the effective server policy. It does not separately embed the complete source, but
 review excerpts may quote input text. Reports are in-memory demo records, not signed or durable logs.
+The ledger and CSV show the **Audit Decision**, not a quality percentage. A model can be highly confident
+that work should be rejected. Its self-reported confidence is labelled with its original recommendation;
+the validated recommendation may be stricter. A rejected or unavailable required review has **no applicable
+approval gate score**. Old seed/snapshot values are not reinterpreted as decision confidence.
 
 Amounts are grouped by currency without conversion; totals explicitly include both Sandbox and Replay rows.
 
@@ -92,10 +96,17 @@ the AI's recommendation (`AUTO_CAPTURE_APPROVED` < `HOLD_FOR_REVISION` < `ESCALA
 unmet. In live Sandbox mode a missing, failed or invalid LLM verdict blocks auto-capture.
 Each model verdict must cover the actual contract criteria, with no duplicate or unknown criterion;
 missing criteria are unmet. Malformed verdicts and non-finite confidence fail closed.
-The merged score (the lower of guardrail and LLM scores) must meet the server-owned minimum of 80%;
+For an approving review, the approval gate (the lower of the guardrail heuristic and model decision confidence)
+must meet the server-owned minimum of 80 on a 0–100 scale;
 a request can raise this threshold but cannot lower it. This minimum is application policy, not an
-assertion that a negotiated contract threshold has been stored. Scores are not calibrated probabilities
-of correctness. Deliverables over 30,000 characters are rejected instead of silently reviewing a prefix.
+assertion that a negotiated contract threshold has been stored. Since 1.3.1, the prompt explicitly asks for
+confidence in the model's own recommendation, not completeness. The report's versioned `score_details`
+separates guardrail heuristics, model decision confidence and the applicable approval gate. A high rejection
+confidence never overrides a hold/dispute. Scores are neither delivery-quality percentages nor calibrated
+probabilities. Legacy `confidence_score` / ledger `ai_confidence` and complementary `risk_score` remain for
+API compatibility only; they are diagnostic numbers, not measured quality or actual risk. Historical evidence
+and video preserve their original values and labels. Deliverables over 30,000 characters are rejected instead
+of silently reviewing a prefix.
 The dashboard's **AI Reviewer Reasoning**
 panel shows the model, its decision, and the reason and evidence for each criterion, plus any risk flags.
 
@@ -144,7 +155,7 @@ a mocked PayPal API, incl. error handling), `tests/test_auditor_llm.py` (LLM rev
 `tests/test_live_gemini.py` (real Gemini calls, skipped without a key). Other tests default to an
 unconfigured reviewer or explicitly mock its approval to isolate the payment path; they never call Gemini.
 Run `pytest -q -m "not live and not live_llm"` for the offline suite, including missing-reviewer,
-merged-confidence threshold, no-capture/no-invoice, concurrency, currency grouping, repeatable Replay,
+approval-gate threshold and decision-confidence semantics, no-capture/no-invoice, concurrency, currency grouping, repeatable Replay,
 and uncertain-payment regression checks. Dashboard DOM tests cover loading failures, busy controls,
 repeat runs, safe text rendering, and partial-success recovery; they are not visual browser tests. Real Sandbox tests create
 test transactions and should only be run when that is intended.

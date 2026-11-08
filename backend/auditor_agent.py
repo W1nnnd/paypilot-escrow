@@ -11,8 +11,8 @@ Evaluates submitted freelancer deliverables against the contract milestone accep
    It can only make the result stricter. A missing verdict blocks capture unless the caller explicitly
    selects guardrail-only evaluation for simulated Replay records.
 5. Returns an explainable Audit Report with:
-   - `confidence_score` (0.0 to 100.0)
-   - `risk_score` (0.0 to 100.0)
+   - `score_details`: separate guardrail heuristic, model decision confidence and approval gate
+   - `confidence_score` / `risk_score`: legacy diagnostics, not quality or risk probabilities
    - `decision`: `"AUTO_CAPTURE_APPROVED"` | `"HOLD_FOR_REVISION"` | `"ESCALATE_DISPUTE"`
    - Detailed per-criterion pass/fail checks.
 """
@@ -49,6 +49,7 @@ class AuditReport:
     checks: list[dict[str, Any]]
     llm_review: dict[str, Any] = field(default_factory=lambda: {"status": "NOT_CONFIGURED"})
     guardrail_decision: str = ""
+    score_details: dict[str, Any] = field(default_factory=dict)
 
 
 DECISION_RANK = {"AUTO_CAPTURE_APPROVED": 0, "HOLD_FOR_REVISION": 1, "ESCALATE_DISPUTE": 2}
@@ -90,7 +91,8 @@ class LLMReviewer:
         '{"criteria": [{"criterion": string, "met": boolean, "reason": string, "evidence": string}], '
         '"risk_flags": [{"flag": string, "severity": "low"|"medium"|"high", "detail": string}], '
         '"recommended_decision": "AUTO_CAPTURE_APPROVED"|"HOLD_FOR_REVISION"|"ESCALATE_DISPUTE", '
-        '"confidence": number from 0 to 100 (how confident you are the milestone is complete), '
+        '"confidence": number from 0 to 100 (your confidence in your recommended_decision, NOT a completion '
+        'percentage or a quality score; a confident rejection can have high confidence), '
         '"summary": string (2-3 sentences, plain English, for the buyer)}\n'
         "Use ESCALATE_DISPUTE for security problems or bad-faith submissions, HOLD_FOR_REVISION for incomplete work."
     )
@@ -231,6 +233,7 @@ def _normalise_verdict(v: dict[str, Any], required_criteria: list[str]) -> dict[
     if not isinstance(rec, str) or rec.upper() not in DECISION_RANK:
         raise ValueError("invalid recommended decision")
     rec = rec.upper()
+    model_rec = rec
     conf = v.get("confidence")
     if (isinstance(conf, bool) or not isinstance(conf, (int, float)) or
             not 0 <= conf <= 100 or not math.isfinite(conf)):
@@ -244,6 +247,7 @@ def _normalise_verdict(v: dict[str, Any], required_criteria: list[str]) -> dict[
     if not overall_pass and rec == "AUTO_CAPTURE_APPROVED":
         rec = "ESCALATE_DISPUTE" if high_risk else "HOLD_FOR_REVISION"
     return {"criteria": criteria, "risk_flags": flags, "recommended_decision": rec, "overall_pass": overall_pass,
+            "model_recommended_decision": model_rec, "confidence_basis": "MODEL_RECOMMENDED_DECISION",
             "confidence": conf, "summary": v["summary"][:1200]}
 
 
@@ -374,6 +378,7 @@ class DeliverableAuditorAgent:
         else:
             decision = "ESCALATE_DISPUTE"
         guardrail_decision = decision
+        guardrail_score = avg_score
 
         # 2) LLM verdict — may only make the outcome stricter, never looser.
         llm_review = self.llm_reviewer.review(required_criteria, artifact_type, artifact_content, evidence)
@@ -402,6 +407,33 @@ class DeliverableAuditorAgent:
             decision = "HOLD_FOR_REVISION"
 
         auto_release = decision == "AUTO_CAPTURE_APPROVED"
+        # Keep legacy numeric fields and payment policy unchanged. Present the components separately:
+        # a high-confidence rejection must never look like high-quality work or approval evidence.
+        model_approval = (llm_status == "OK" and llm_review.get("overall_pass") is True and
+                          llm_review.get("recommended_decision") == "AUTO_CAPTURE_APPROVED")
+        replay_guardrails = llm_status == "NOT_CONFIGURED" and not require_llm
+        gate_applicable = (model_approval or replay_guardrails) and guardrail_decision != "ESCALATE_DISPUTE"
+        gate_score = avg_score if gate_applicable else None
+        score_details = {
+            "semantics_version": "1.0",
+            "guardrail_heuristic_score": guardrail_score,
+            "model_decision_confidence": llm_review.get("confidence") if llm_status == "OK" else None,
+            "model_confidence_for": llm_review.get("model_recommended_decision") if llm_status == "OK" else None,
+            "model_confidence_basis": llm_review.get("confidence_basis") if llm_status == "OK" else None,
+            "approval_gate_score": gate_score,
+            "approval_gate_threshold": threshold,
+            "approval_gate_basis": ("BLOCKED" if not gate_applicable else
+                                    "RULES_AND_MODEL" if model_approval else "REPLAY_GUARDRAILS_ONLY"),
+            "interpretation": (
+                "Scores use a 0-100 scale, not percentages of work completed or calibrated probabilities. "
+                "Model confidence is self-reported confidence in its original recommendation only when "
+                "model_confidence_basis is MODEL_RECOMMENDED_DECISION. The validated recommendation may be stricter. "
+                "The approval gate is not applicable when the model rejects, guardrails require a dispute, or a required review is unavailable. "
+                "Legacy confidence_score (also ledger ai_confidence) is the lower of the guardrail heuristic and "
+                "available model confidence; legacy risk_score is a complementary diagnostic, not actual risk. "
+                "The final decision controls capture; a numeric score alone never authorizes payment."
+            ),
+        }
         llm_note = ""
         if llm_status == "OK":
             llm_note = f" AI reviewer ({llm_review['model']}): {llm_review['summary']}"
@@ -414,18 +446,19 @@ class DeliverableAuditorAgent:
         if auto_release:
             summary = (
                 f"Deliverable passed {sum(1 for c in checks if c.passed)}/{len(checks)} checks "
-                f"(confidence {avg_score}% >= {threshold}%). Eligible for PayPal escrow capture."
+                f"(approval gate {avg_score}/100; required {threshold}/100). Eligible for PayPal escrow capture."
             )
         elif decision == "HOLD_FOR_REVISION":
             summary = (
-                f"Hold for revision (confidence {avg_score}%, threshold {threshold}%). "
-                "PayPal authorization stays on hold while the freelancer addresses the open criteria."
+                "Hold for revision. Auto-capture blocked; inspect the checks and reviewer reasons."
             )
         else:
             summary = (
-                f"Escalated to dispute (confidence {avg_score}%, risk {risk_score:.1f}%). "
-                "Escrow funds stay frozen for human review."
+                "Escalated to dispute. Auto-capture blocked; human review is required."
             )
+        if not auto_release and gate_score is not None:
+            summary += f" Approval gate {gate_score}/100; required {threshold}/100."
+        summary += " Scores are policy diagnostics, not delivery quality or calibrated probabilities."
         summary += llm_note
 
         return AuditReport(
@@ -438,4 +471,5 @@ class DeliverableAuditorAgent:
             checks=[asdict(c) for c in checks],
             llm_review=llm_review,
             guardrail_decision=guardrail_decision,
+            score_details=score_details,
         )

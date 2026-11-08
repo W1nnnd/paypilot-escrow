@@ -56,8 +56,8 @@ seg("split",("s11_ai_reasoning",(1150,600,770,480)),"4 · Gemini reviewer reason
  f"Then Gemini checks each acceptance criterion and explains its verdict with evidence from the code.",
  callout=[("Model", BS["model"]),("Gemini verdict", BS["llm_decision"]),("Guardrails", BS["guardrail"])])
 seg("split",("s11_ai_reasoning",(1150,600,770,480)),"4 · Gemini reviewer reasoning", LIVE,
- f"Both agree: auto-capture approved, at {BS['confidence']} percent confidence, above the 80 percent threshold.",
- callout=[("Decision", BS["decision"]),("Confidence", f"{BS['confidence']}%"),("Threshold","80%")])
+ "Both agree: auto-capture approved. The approval policy passed. Model confidence is not a delivery-quality score.",
+ callout=[("Decision", BS["decision"]),("Policy", "Approval checks passed"),("Scores", "Not delivery quality")])
 seg("split",("s12_capture_telemetry",(1150,380,770,700)),"5 · Capture", LIVE,
  f"PayPilot captures the authorization. PayPal reports the capture as COMPLETED.",
  f"PayPilot captures the authorization. PayPal reports the capture as completed.",

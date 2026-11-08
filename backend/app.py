@@ -36,7 +36,7 @@ SAMPLES = {"good": "good_capture_endpoint.py", "stub": "stub_deliverable.py"}
 
 app = FastAPI(
     title="PayPilot Escrow — AI-audited milestone escrow on PayPal",
-    version="1.3.0",
+    version="1.3.1",
     description=(
         "Locks milestone funds with a PayPal Orders v2 AUTHORIZE order the buyer approves, audits the deliverable, "
         "then captures (or keeps on hold / voids) the authorization and issues a PayPal invoice."
@@ -82,7 +82,7 @@ SEED_LEDGER: dict[str, dict[str, Any]] = {
             "Implement OAuth2 token caching and PayPal Orders v2 AUTHORIZE intent",
             "Verify webhook signature headers and idempotency keys",
         ],
-        "last_audit_summary": "Deliverable passed 4/4 verification checks (Confidence 96.5%). Settled (simulated replay data).",
+        "last_audit_summary": "Seed example: approved and settled (simulated Replay data). No audit was run for this record in the current session.",
     },
     "MS-1002": {
         "milestone_id": "MS-1002",
@@ -138,7 +138,7 @@ SEED_LEDGER: dict[str, dict[str, Any]] = {
             "Implement ticket classifier with structured JSON schema output",
             "Include fallback retry handler and unit tests",
         ],
-        "last_audit_summary": "Deliverable scored 64.2% (below 80.0% auto-capture threshold). Simulated authorization stays on hold while freelancer adds retry tests (replay data).",
+        "last_audit_summary": "Seed example: held for revision while retry tests are missing (simulated Replay data). No audit was run for this record in the current session.",
     },
     "MS-1004": {
         "milestone_id": "MS-1004",
@@ -299,6 +299,7 @@ async def list_milestones() -> dict[str, Any]:
     settled = totals({"CAPTURED_SETTLED"})
     return {
         "milestones": items,
+        "score_interpretation": "Legacy ai_confidence and risk_score are diagnostics, not delivery quality or actual risk. Use ai_decision and last_audit_report.audit.score_details. Seed examples have no current audit evidence.",
         "metrics": {
             "total_milestones": len(items),
             "escrow_locked_amount": next(iter(locked.values()), 0.0) if len(locked) <= 1 else None,
@@ -320,7 +321,7 @@ async def get_audit_report(milestone_id: str, download: bool = False):
     if not ms.get("last_audit_report"):
         raise HTTPException(status_code=404, detail="No audit has been run for this milestone in this process")
     report = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "milestone_id": milestone_id,
         "project_name": ms["project_name"],
         "paypal_mode": ms["paypal_mode"],
@@ -334,6 +335,7 @@ async def get_audit_report(milestone_id: str, download: bool = False):
             "Code is inspected, not executed. The test pass rate is supplied by the submitter.",
             "Raw source is not separately included; review reasons and evidence may quote input text.",
             "The evaluation is a snapshot; current_payment reflects the latest ledger state.",
+            "Scores are policy diagnostics, not delivery quality or calibrated probabilities. Read audit.score_details; the final decision takes precedence.",
         ],
     }
     headers = {"Content-Disposition": f'attachment; filename="PayPilot-{milestone_id}-audit.json"'} if download else None
@@ -547,6 +549,9 @@ async def verify_and_settle_milestone(req: VerifyDeliverableRequest) -> dict[str
             "status": llm.get("status"),
             "model": llm.get("model"),
             "recommended_decision": llm.get("recommended_decision"),
+            "model_recommended_decision": llm.get("model_recommended_decision"),
+            "confidence": llm.get("confidence"),
+            "confidence_basis": llm.get("confidence_basis"),
             "summary": llm.get("summary"),
             "criteria": llm.get("criteria", []),
             "risk_flags": llm.get("risk_flags", []),

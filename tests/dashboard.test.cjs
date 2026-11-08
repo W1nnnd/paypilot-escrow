@@ -160,3 +160,82 @@ test('fresh stub demo loads the stub and reports actual verdict',async t=>{
   assert.equal(sampleRoute,'/api/samples/stub');assert.equal(auditPayload.milestone_id,'MS-2000');
   assert.match(doc.getElementById('action-status').textContent,/HOLD_FOR_REVISION/);
 });
+
+function scoredRow(decision='HOLD_FOR_REVISION',confidence=100,gate=null) {
+  const review={status:'OK',model:'offline-test',recommended_decision:decision,
+    model_recommended_decision:decision,confidence,confidence_basis:'MODEL_RECOMMENDED_DECISION',criteria:[],risk_flags:[]};
+  return {...row('MS-2001'),ai_decision:decision,ai_confidence:99.6,ai_reviewer:review,
+    escrow_status:decision==='AUTO_CAPTURE_APPROVED'?'CAPTURED_SETTLED':'HOLD_FOR_REVISION',
+    last_audit_report:{evaluated_at:'2026-11-08T00:00:00Z',artifact_sha256:'hash',effective_threshold:80,server_minimum_threshold:80,
+      audit:{decision,auto_release_eligible:decision==='AUTO_CAPTURE_APPROVED',confidence_score:99.6,
+        guardrail_decision:'AUTO_CAPTURE_APPROVED',llm_review:review,checks:[],
+        score_details:{approval_gate_score:gate,approval_gate_basis:gate===null?'BLOCKED':'RULES_AND_MODEL'}}}};
+}
+
+test('confident rejection shows decision and targeted confidence, never a quality percentage',async t=>{
+  const m=scoredRow();
+  const {win,doc}=await setup(t,async()=>response(ledger([m])));
+  await win.refreshLedger();
+  const decision=doc.getElementById('decision-body').textContent;
+  assert.match(decision,/Final audit decision: HOLD_FOR_REVISION/);
+  assert.match(decision,/No approval score applies/);
+  assert.match(decision,/confidence in HOLD_FOR_REVISION: 100\/100/);
+  assert.match(decision,/Not delivery quality or a calibrated probability/);
+  assert.doesNotMatch(decision,/99\.6|Merged score|100%/);
+  assert.match(doc.getElementById('ai-panel-body').textContent,/confidence in HOLD_FOR_REVISION: 100\/100/);
+  assert.match(doc.getElementById('escrowGrid').textContent,/Audit Decision.*HOLD_FOR_REVISION/);
+  assert.doesNotMatch(doc.getElementById('escrowGrid').textContent,/99\.6/);
+});
+
+test('normalised rejection keeps self-reported confidence on original recommendation',async t=>{
+  const m=scoredRow();m.ai_reviewer.model_recommended_decision='AUTO_CAPTURE_APPROVED';
+  const {win,doc}=await setup(t,async()=>response(ledger([m])));
+  await win.refreshLedger();
+  assert.match(doc.getElementById('ai-panel-body').textContent,/confidence in AUTO_CAPTURE_APPROVED: 100\/100/);
+  assert.match(doc.getElementById('ai-panel-body').textContent,/contract checks tightened it to HOLD_FOR_REVISION/);
+  assert.match(doc.getElementById('decision-body').textContent,/No approval score applies/);
+});
+
+test('approval gate shows precise subthreshold diagnostic without suggesting payment',async t=>{
+  const m=scoredRow('HOLD_FOR_REVISION',79.99,79.99);
+  m.ai_reviewer.model_recommended_decision='AUTO_CAPTURE_APPROVED';
+  m.ai_reviewer.recommended_decision='AUTO_CAPTURE_APPROVED';
+  const {win,doc}=await setup(t,async()=>response(ledger([m])));
+  await win.refreshLedger();
+  assert.match(doc.getElementById('decision-body').textContent,/Approval gate: 79\.99\/100 · required 80\/100/);
+  assert.match(doc.getElementById('decision-body').textContent,/Final audit decision: HOLD_FOR_REVISION/);
+  assert.match(doc.getElementById('decision-body').textContent,/not payment confirmation/);
+});
+
+test('legacy scores are not reinterpreted as decision confidence',async t=>{
+  const m=scoredRow();delete m.last_audit_report.audit.score_details;delete m.ai_reviewer.confidence_basis;
+  const {win,doc}=await setup(t,async()=>response(ledger([m])));
+  await win.refreshLedger();
+  assert.match(doc.getElementById('decision-body').textContent,/Legacy score semantics are unavailable/);
+  assert.doesNotMatch(doc.getElementById('decision-body').textContent,/99\.6|100\/100/);
+  assert.doesNotMatch(doc.getElementById('ai-panel-body').textContent,/self-reported confidence/);
+});
+
+test('guardrail-only Replay is labelled and has no fabricated model confidence',async t=>{
+  const m=scoredRow('AUTO_CAPTURE_APPROVED',100,99.6);
+  m.last_audit_report.audit.score_details.approval_gate_basis='REPLAY_GUARDRAILS_ONLY';
+  m.ai_reviewer.status='NOT_CONFIGURED';delete m.ai_reviewer.confidence_basis;
+  const {win,doc}=await setup(t,async()=>response(ledger([m])));
+  await win.refreshLedger();
+  assert.match(doc.getElementById('decision-body').textContent,/Guardrail-only Replay gate: 99\.6\/100/);
+  assert.doesNotMatch(doc.getElementById('decision-body').textContent,/self-reported confidence/);
+});
+
+test('AG Grid and its CSV column use final decision rather than legacy confidence',async t=>{
+  let gridOptions;let csvOptions;
+  const {win,doc}=await setup(t,async url=>response(url==='/api/paypal/status'?{mode:'REPLAY_SIMULATED'}:ledger([scoredRow()])));
+  win.agGrid={createGrid:(_host,options)=>{gridOptions=options;return {setGridOption:()=>{},exportDataAsCsv:options=>csvOptions=options};}};
+  doc.dispatchEvent(new win.Event('DOMContentLoaded'));
+  await new Promise(resolve=>win.setTimeout(resolve,0));
+  const fields=Array.from(gridOptions.columnDefs,c=>c.field);
+  assert.ok(fields.includes('ai_decision'));assert.ok(!fields.includes('ai_confidence'));
+  assert.equal(gridOptions.columnDefs.find(c=>c.field==='ai_decision').headerName,'Audit Decision');
+  win.exportCsv();
+  assert.equal(csvOptions.processCellCallback({value:'HOLD_FOR_REVISION'}),'HOLD_FOR_REVISION');
+  assert.equal(csvOptions.processCellCallback({value:'=dangerous'}),"'=dangerous");
+});

@@ -93,3 +93,38 @@ def test_oversized_artifact_rejected_instead_of_silently_partial_review(client, 
     monkeypatch.setattr(module.auditor_agent, 'evaluate_deliverable', forbidden)
     result=client.post('/api/escrow/verify-and-settle',json={'milestone_id':'MS-1002','artifact_content':'x'*30001})
     assert result.status_code == 422
+
+
+@pytest.mark.parametrize('decision', ['HOLD_FOR_REVISION', 'ESCALATE_DISPUTE'])
+def test_confident_rejection_metadata_matches_response_ledger_and_download(client, monkeypatch, decision):
+    from backend.auditor_agent import _normalise_verdict
+    def review(criteria, *_args):
+        verdict = _normalise_verdict({
+            'criteria': [{'criterion': c, 'met': False, 'reason': 'stub', 'evidence': 'return True'} for c in criteria],
+            'risk_flags': [], 'recommended_decision': decision, 'confidence': 100, 'summary': 'Reject stub.'}, criteria)
+        return dict(verdict, status='OK', model='offline-test')
+    monkeypatch.setattr(module.auditor_agent.llm_reviewer, 'review', review)
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError('Rejected review must not call PayPal')
+    monkeypatch.setattr(module.replay_client, 'capture_authorization', forbidden)
+    monkeypatch.setattr(module.replay_client, 'create_milestone_invoice', forbidden)
+    body = client.post('/api/escrow/verify-and-settle', json={
+        'milestone_id':'MS-1002', 'artifact_content':GOOD_DELIVERABLE, 'test_pass_rate':0.98}).json()
+    assert body['paypal_capture'] is None and body['paypal_invoice'] is None
+    audit = body['audit_report']
+    assert audit['confidence_score'] == 99.6
+    assert audit['score_details']['approval_gate_score'] is None
+    assert audit['score_details']['model_confidence_for'] == decision
+    assert audit['decision'] == decision and audit['auto_release_eligible'] is False
+    ledger = client.get('/api/milestones').json()
+    milestone = next(m for m in ledger['milestones'] if m['milestone_id'] == 'MS-1002')
+    assert milestone['last_audit_report']['audit'] == audit
+    assert milestone['ai_reviewer']['confidence'] == 100
+    assert milestone['ai_reviewer']['confidence_basis'] == 'MODEL_RECOMMENDED_DECISION'
+    assert milestone['ai_reviewer']['model_recommended_decision'] == decision
+    assert 'not delivery quality' in ledger['score_interpretation']
+    report = client.get('/api/escrow/MS-1002/audit-report?download=true').json()
+    assert report['schema_version'] == '1.1'
+    assert report['evaluation']['app_version'] == '1.3.1'
+    assert report['evaluation']['audit'] == audit
+    assert any('not delivery quality' in text for text in report['limitations'])

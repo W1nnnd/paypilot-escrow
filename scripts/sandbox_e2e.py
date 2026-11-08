@@ -23,7 +23,7 @@ OUT_FILE = ROOT / "docs" / "sandbox_gemini_e2e_results.json"
 def ai(out):
     """Keep the AI reviewer's verdict (model, reasons, risk flags) for the evidence file."""
     r = out["audit_report"]["llm_review"]
-    return {k: r.get(k) for k in ("status", "model", "recommended_decision", "confidence", "summary", "criteria", "risk_flags",
+    return {k: r.get(k) for k in ("status", "model", "recommended_decision", "model_recommended_decision", "confidence_basis", "confidence", "summary", "criteria", "risk_flags",
                                   "latency_s", "fallback_attempts", "error", "attempts") if k in r}
 BAD = 'API_SECRET = "sk-1234567890abcdefghijklmnop"\ndef broken(:\n    pass\n'
 
@@ -54,6 +54,7 @@ out = c.post("/api/escrow/verify-and-settle", json={"milestone_id": b["milestone
 res["B_capture_path"] = {
     "milestone_id": b["milestone_id"], "paypal_order_id": b["paypal_order_id"], "authorization_id": b["paypal_authorization_id"],
     "ai_decision": out["audit_report"]["decision"], "ai_confidence": out["audit_report"]["confidence_score"],
+    "score_details": out["audit_report"].get("score_details"),
     "guardrail_decision": out["audit_report"]["guardrail_decision"], "ai_reviewer": ai(out),
     "capture_id": (out["paypal_capture"] or {}).get("capture_id"), "capture_status": (out["paypal_capture"] or {}).get("status"),
     "invoice_id": (out["paypal_invoice"] or {}).get("invoice_id"), "invoice_status": (out["paypal_invoice"] or {}).get("status"),
@@ -69,6 +70,7 @@ auth_after = e["paypal_authorization_id"]
 v2 = c.post(f"/api/escrow/{e['milestone_id']}/void").json()
 res["B2_ai_blocks_stub_path"] = {
     "milestone_id": e["milestone_id"], "paypal_order_id": e["paypal_order_id"], "authorization_id": auth_after,
+    "score_details": out["audit_report"].get("score_details"),
     "guardrail_decision": out["audit_report"]["guardrail_decision"], "final_decision": out["audit_report"]["decision"],
     "paypal_capture": out["paypal_capture"], "status_after_audit": out["milestone"]["escrow_status"], "ai_reviewer": ai(out),
     "void_status_after_test": (v2.get("paypal_void") or {}).get("status"),
@@ -81,6 +83,7 @@ out = c.post("/api/escrow/verify-and-settle", json={"milestone_id": d["milestone
 v = c.post(f"/api/escrow/{d['milestone_id']}/void").json()
 res["C_dispute_void_path"] = {
     "milestone_id": d["milestone_id"], "paypal_order_id": d["paypal_order_id"], "authorization_id": d["paypal_authorization_id"],
+    "score_details": out["audit_report"].get("score_details"),
     "guardrail_decision": out["audit_report"]["guardrail_decision"], "ai_decision": out["audit_report"]["decision"],
     "status_after_audit": out["milestone"]["escrow_status"], "ai_reviewer": ai(out), "void_status": v["paypal_void"]["status"],
 }

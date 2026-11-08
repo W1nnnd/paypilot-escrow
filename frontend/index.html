@@ -226,10 +226,10 @@
         }
       },
       {
-        field: "ai_confidence",
-        headerName: "AI Score",
-        width: 105,
-        valueFormatter: p => p.data.ai_decision === "PENDING_DELIVERABLE" ? "Pending" : `${Number(p.value)}%`
+        field: "ai_decision",
+        headerName: "Audit Decision",
+        width: 230,
+        valueFormatter: p => p.value || "PENDING_DELIVERABLE"
       },
       {
         field: "paypal_mode",
@@ -344,7 +344,7 @@
       host.style.overflow = "auto";
       const table = el("table", "fallback-table");
       const head = el("tr");
-      ["Milestone", "Amount", "State", "Source"].forEach(label => head.appendChild(el("th", null, label)));
+      ["Milestone", "Amount", "Payment State", "Audit Decision", "Source"].forEach(label => head.appendChild(el("th", null, label)));
       table.appendChild(head);
       const query = document.getElementById("quick-filter").value.toLowerCase();
       MILESTONES.filter(m => JSON.stringify(m).toLowerCase().includes(query)).forEach(m => {
@@ -353,7 +353,7 @@
         const pick = el("button", "secondary", m.milestone_id);
         pick.onclick = () => { if (!busy) { document.getElementById("milestone-select").value = m.milestone_id; updateApprovalBox(); } };
         id.appendChild(pick); row.appendChild(id);
-        [formatMoney(m.amount, m.currency), m.escrow_status, m.paypal_mode === "LIVE_SANDBOX" ? "Sandbox" : "Replay"].forEach(value => row.appendChild(el("td", null, value)));
+        [formatMoney(m.amount, m.currency), m.escrow_status, m.ai_decision || "PENDING_DELIVERABLE", m.paypal_mode === "LIVE_SANDBOX" ? "Sandbox" : "Replay"].forEach(value => row.appendChild(el("td", null, value)));
         table.appendChild(row);
       });
       host.appendChild(table);
@@ -413,6 +413,12 @@
       return e;
     }
 
+    function modelConfidenceText(r) {
+      if (r?.confidence_basis !== "MODEL_RECOMMENDED_DECISION" ||
+          !Number.isFinite(r.confidence) || !r.model_recommended_decision) return null;
+      return `Model self-reported confidence in ${r.model_recommended_decision}: ${r.confidence}/100. Not delivery quality or a calibrated probability.`;
+    }
+
     function renderAiReviewer(r) {
       const body = document.getElementById("ai-panel-body");
       body.innerHTML = "";
@@ -429,10 +435,15 @@
         return;
       }
       const head = el("div");
-      head.appendChild(el("strong", null, `${r.model}: `));
+      head.appendChild(el("strong", null, `${r.model} · validated recommendation: `));
       head.appendChild(el("span", r.recommended_decision === "AUTO_CAPTURE_APPROVED" ? "ai-ok" : "ai-bad", r.recommended_decision));
       if (r.guardrail_decision) head.appendChild(el("span", null, `  (guardrails: ${r.guardrail_decision})`));
       body.appendChild(head);
+      const confidenceText = modelConfidenceText(r);
+      if (confidenceText) body.appendChild(el("div", null, confidenceText));
+      if (r.model_recommended_decision && r.model_recommended_decision !== r.recommended_decision) {
+        body.appendChild(el("div", "ai-bad", `Model originally recommended ${r.model_recommended_decision}; contract checks tightened it to ${r.recommended_decision}.`));
+      }
       body.appendChild(el("div", null, r.summary || ""));
       (r.criteria || []).forEach(c => {
         const d = el("div", "ai-crit");
@@ -460,7 +471,23 @@
       }
       const audit = report.audit;
       body.appendChild(el("strong", audit.auto_release_eligible ? "ai-ok" : "ai-bad", `Final audit decision: ${audit.decision}`));
-      body.appendChild(el("div", null, `Merged score ${audit.confidence_score}% · required ${report.effective_threshold}% (server minimum ${report.server_minimum_threshold}%)`));
+      const scores = audit.score_details;
+      if (scores) {
+        if (Number.isFinite(scores.approval_gate_score)) {
+          const basis = scores.approval_gate_basis === "REPLAY_GUARDRAILS_ONLY" ? "Guardrail-only Replay gate" : "Approval gate";
+          body.appendChild(el("div", null, `${basis}: ${scores.approval_gate_score}/100 · required ${report.effective_threshold}/100 (server minimum ${report.server_minimum_threshold}/100). A policy diagnostic, not delivery quality.`));
+        } else {
+          body.appendChild(el("div", "ai-bad", "Approval gate: blocked by review checks or a missing required reviewer. No approval score applies."));
+        }
+        const confidenceText = modelConfidenceText(audit.llm_review);
+        if (confidenceText) body.appendChild(el("div", null, confidenceText));
+        if (audit.llm_review?.recommended_decision) {
+          body.appendChild(el("div", null, `Model recommendation after contract checks: ${audit.llm_review.recommended_decision}.`));
+        }
+        body.appendChild(el("div", null, "The final decision controls capture; a numeric score alone never authorizes payment."));
+      } else {
+        body.appendChild(el("div", null, "Legacy score semantics are unavailable for this record. Use the final decision and criteria, not a numeric quality estimate."));
+      }
       body.appendChild(el("div", null, `Guardrails: ${audit.guardrail_decision} · AI reviewer: ${audit.llm_review?.status || "unknown"}`));
       body.appendChild(el("div", null, `Payment state: ${m.escrow_status}. Audit approval is not payment confirmation.`));
       const list = el("ul");
