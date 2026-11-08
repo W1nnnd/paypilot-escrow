@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import os
 import itertools
 import uuid
 from contextlib import contextmanager
 from decimal import Decimal
+from datetime import datetime, timezone
 
 import httpx
 from dataclasses import asdict
@@ -22,7 +24,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from .auditor_agent import DeliverableAuditorAgent
@@ -34,7 +36,7 @@ SAMPLES = {"good": "good_capture_endpoint.py", "stub": "stub_deliverable.py"}
 
 app = FastAPI(
     title="PayPilot Escrow — AI-audited milestone escrow on PayPal",
-    version="1.2.0",
+    version="1.3.0",
     description=(
         "Locks milestone funds with a PayPal Orders v2 AUTHORIZE order the buyer approves, audits the deliverable, "
         "then captures (or keeps on hold / voids) the authorization and issues a PayPal invoice."
@@ -49,6 +51,8 @@ auditor_agent = DeliverableAuditorAgent()
 
 LOCKED_STATES = {"ESCROW_AUTHORIZED", "HOLD_FOR_REVISION", "DISPUTE_FROZEN"}
 SETTLEABLE_STATES = {"ESCROW_AUTHORIZED", "HOLD_FOR_REVISION"}
+# Server-owned minimum policy, not an assertion about a negotiated contract.
+MIN_AUTO_CAPTURE_THRESHOLD = 80.0
 
 # Seeded demo rows (always REPLAY_SIMULATED, clearly labelled in the UI)
 SEED_LEDGER: dict[str, dict[str, Any]] = {
@@ -236,7 +240,7 @@ class CreateEscrowRequest(BaseModel):
 class VerifyDeliverableRequest(BaseModel):
     milestone_id: str
     artifact_type: str = Field(default="python_code")
-    artifact_content: str = Field(..., min_length=10)
+    artifact_content: str = Field(..., min_length=10, max_length=30000)
     test_pass_rate: float = Field(default=0.96, ge=0.0, le=1.0)
     auto_capture_threshold: float = Field(default=80.0, ge=50.0, le=100.0)
     acceptance_evidence: str = Field(default="", max_length=8000, description="Test output, demo URL notes, etc. given to the AI reviewer")
@@ -306,6 +310,34 @@ async def list_milestones() -> dict[str, Any]:
             "live_sandbox_records": sum(1 for m in items if m.get("paypal_mode") == LIVE_MODE),
         },
     }
+
+
+@app.get("/api/escrow/{milestone_id}/audit-report")
+async def get_audit_report(milestone_id: str, download: bool = False):
+    ms = LEDGER.get(milestone_id)
+    if not ms:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    if not ms.get("last_audit_report"):
+        raise HTTPException(status_code=404, detail="No audit has been run for this milestone in this process")
+    report = {
+        "schema_version": "1.0",
+        "milestone_id": milestone_id,
+        "project_name": ms["project_name"],
+        "paypal_mode": ms["paypal_mode"],
+        "evaluation": copy.deepcopy(ms["last_audit_report"]),
+        "current_payment": {key: ms.get(key) for key in (
+            "escrow_status", "amount", "currency", "paypal_order_id", "paypal_authorization_id",
+            "paypal_capture_id", "paypal_invoice_id", "last_audit_summary")},
+        "limitations": [
+            "Sandbox or Replay prototype, not a production escrow guarantee.",
+            "In-memory demo record; not signed, tamper-proof or durable across restarts.",
+            "Code is inspected, not executed. The test pass rate is supplied by the submitter.",
+            "Raw source is not separately included; review reasons and evidence may quote input text.",
+            "The evaluation is a snapshot; current_payment reflects the latest ledger state.",
+        ],
+    }
+    headers = {"Content-Disposition": f'attachment; filename="PayPilot-{milestone_id}-audit.json"'} if download else None
+    return JSONResponse(content=report, headers=headers)
 
 
 @app.post("/api/demo/replay")
@@ -483,11 +515,29 @@ async def verify_and_settle_milestone(req: VerifyDeliverableRequest) -> dict[str
             artifact_type=req.artifact_type,
             artifact_content=req.artifact_content,
             test_pass_rate=req.test_pass_rate,
-            threshold=req.auto_capture_threshold,
+            threshold=max(MIN_AUTO_CAPTURE_THRESHOLD, req.auto_capture_threshold),
             evidence=req.acceptance_evidence,
             # This policy comes from the server-owned record, never from the request body.
             require_llm=ms.get("paypal_mode") != REPLAY_MODE,
         )
+        # Preserve what was evaluated separately from the later payment outcome.
+        # This is a demo record, not a signed or durable audit trail.
+        ms["last_audit_report"] = {
+            "audit_id": f"AUD-{uuid.uuid4().hex}",
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
+            "app_version": app.version,
+            "source_commit": os.environ.get("RENDER_GIT_COMMIT"),
+            "artifact_type": req.artifact_type,
+            "artifact_sha256": hashlib.sha256(req.artifact_content.encode("utf-8")).hexdigest(),
+            "acceptance_evidence_sha256": hashlib.sha256(req.acceptance_evidence.encode("utf-8")).hexdigest(),
+            "reported_test_pass_rate": req.test_pass_rate,
+            "code_executed": False,
+            "requested_threshold": req.auto_capture_threshold,
+            "server_minimum_threshold": MIN_AUTO_CAPTURE_THRESHOLD,
+            "effective_threshold": max(MIN_AUTO_CAPTURE_THRESHOLD, req.auto_capture_threshold),
+            "required_criteria": list(ms["required_criteria"]),
+            "audit": asdict(audit),
+        }
         ms["ai_confidence"] = audit.confidence_score
         ms["risk_score"] = audit.risk_score
         ms["ai_decision"] = audit.decision

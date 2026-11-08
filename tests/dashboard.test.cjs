@@ -131,3 +131,32 @@ test('load failure is visible and retry can restore the dashboard',async t=>{
   fail=false;await win.refreshDashboard();
   assert.equal(doc.getElementById('demo-button').disabled,false);
 });
+
+test('audit evidence separates approval from unconfirmed payment and provides report link',async t=>{
+  const m={...row('MS-1002'),escrow_status:'CAPTURE_UNKNOWN',last_audit_report:{
+    audit_id:'AUD-test',evaluated_at:'2026-11-08T00:00:00Z',artifact_sha256:'abc123',
+    effective_threshold:80,server_minimum_threshold:80,audit:{decision:'AUTO_CAPTURE_APPROVED',
+      auto_release_eligible:true,confidence_score:92,guardrail_decision:'AUTO_CAPTURE_APPROVED',
+      llm_review:{status:'OK'},checks:[{passed:true,criterion:'<script>text</script>',evidence:'reviewed'}]}}};
+  const {win,doc}=await setup(t,async()=>response(ledger([m])));
+  await win.refreshLedger();
+  assert.match(doc.getElementById('decision-body').textContent,/CAPTURE_UNKNOWN/);
+  assert.match(doc.getElementById('decision-body').textContent,/not payment confirmation/);
+  assert.equal(doc.querySelectorAll('#decision-body script').length,0);
+  assert.equal(doc.getElementById('audit-report-link').getAttribute('href'),'/api/escrow/MS-1002/audit-report?download=true');
+  assert.equal(doc.getElementById('audit-button').disabled,true);
+});
+
+test('fresh stub demo loads the stub and reports actual verdict',async t=>{
+  const rows=[row('MS-1002')];let sampleRoute;let auditPayload;
+  const {win,doc}=await setup(t,async(url,opts)=>{
+    if(url==='/api/milestones')return response(ledger(rows));
+    if(url.startsWith('/api/samples/')){sampleRoute=url;return response({content:'def stub(): return True'});}
+    if(url==='/api/demo/replay'){const m=row('MS-2000');rows.push(m);return response({status:'ok',milestone:m});}
+    auditPayload=JSON.parse(opts.body);rows[1].escrow_status='HOLD_FOR_REVISION';
+    return response({status:'ok',milestone:rows[1]});
+  });
+  await win.refreshLedger();await win.prefillAndRunDemo('stub');
+  assert.equal(sampleRoute,'/api/samples/stub');assert.equal(auditPayload.milestone_id,'MS-2000');
+  assert.match(doc.getElementById('action-status').textContent,/HOLD_FOR_REVISION/);
+});

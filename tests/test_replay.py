@@ -22,7 +22,7 @@ def test_health_status_and_dashboard_are_labelled_replay(use_client):
     _replay(use_client)
     health = client.get("/api/health").json()
     assert health["paypal_mode"] == "REPLAY_SIMULATED"
-    assert health["version"] == "1.2.0"
+    assert health["version"] == "1.3.0"
     assert "source_commit" in health
     st = client.get("/api/paypal/status").json()
     assert st["connected"] is False and "Replay (simulated)" in st["label"]

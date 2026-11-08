@@ -161,3 +161,121 @@ def test_failed_reviewer_blocks_capture_even_in_replay(monkeypatch, status, requ
     rep = _audit(reviewer, require_llm=require_llm)
     assert rep.decision == "HOLD_FOR_REVISION"
     assert rep.auto_release_eligible is False
+
+
+def test_reordered_normalised_criteria_are_matched_to_contract(monkeypatch):
+    v = _verdict()
+    v['criteria'].reverse()
+    for c in v['criteria']:
+        c['criterion'] = '  \t' + c['criterion'].upper().replace(' ', '  \n') + '  '
+    rep = _audit(_reviewer(monkeypatch, _chat(v)))
+    assert rep.auto_release_eligible is True
+    assert [c['criterion'] for c in rep.llm_review['criteria']] == CRITERIA
+
+
+def test_missing_first_criterion_is_not_replaced_by_last(monkeypatch):
+    v = _verdict()
+    v['criteria'] = v['criteria'][1:]
+    rep = _audit(_reviewer(monkeypatch, _chat(v)))
+    assert rep.llm_review['criteria'][0]['criterion'] == CRITERIA[0]
+    assert rep.llm_review['criteria'][0]['met'] is False
+    assert rep.llm_review['criteria'][1]['met'] is True
+    assert rep.auto_release_eligible is False
+
+
+@pytest.mark.parametrize('kind', ['duplicate', 'unknown', 'extra', 'case_duplicate', 'empty'])
+def test_invalid_criterion_coverage_cannot_approve(monkeypatch, kind):
+    v = _verdict()
+    if kind in ('duplicate', 'case_duplicate'):
+        v['criteria'][1]['criterion'] = CRITERIA[0]
+        if kind == 'case_duplicate':
+            v['criteria'][1]['criterion'] = ' ' + CRITERIA[0].upper() + '\n'
+    elif kind == 'unknown':
+        v['criteria'][0]['criterion'] = 'Invented acceptance criterion'
+    elif kind == 'extra':
+        v['criteria'].append(dict(v['criteria'][0], criterion='Extra criterion'))
+    else:
+        v['criteria'] = []
+    rep = _audit(_reviewer(monkeypatch, _chat(v)))
+    assert rep.decision == 'HOLD_FOR_REVISION'
+    assert rep.auto_release_eligible is False
+
+
+@pytest.mark.parametrize('confidence', [float('nan'), float('inf'), -float('inf'), None,
+                                       'NaN', 'Infinity', '92', True, False, [], {}, -1, 101, 10**400])
+def test_invalid_confidence_fails_closed_even_with_zero_threshold(monkeypatch, confidence):
+    rep = _audit(_reviewer(monkeypatch, _chat(_verdict(conf=confidence))), threshold=0)
+    assert rep.llm_review['status'] == 'ERROR'
+    assert rep.auto_release_eligible is False
+
+
+def test_confidence_is_not_rounded_up_across_approval_threshold(monkeypatch):
+    rep = _audit(_reviewer(monkeypatch, _chat(_verdict(conf=79.99))))
+    assert rep.llm_review['confidence'] == 79.99
+    assert rep.auto_release_eligible is False
+
+
+@pytest.mark.parametrize('field,value', [
+    ('criteria', None), ('criteria', {}), ('criteria', 'criteria'), ('criteria', [None]),
+    ('criteria', ['criterion']), ('criteria', [1]),
+    ('risk_flags', None), ('risk_flags', {}), ('risk_flags', 'high'),
+    ('risk_flags', [None]), ('risk_flags', ['high']), ('risk_flags', [1]),
+    ('risk_flags', [{}]), ('risk_flags', [{'flag': 'unsafe', 'severity': 'critical', 'detail': 'x'}]),
+    ('risk_flags', [{'flag': 'unsafe', 'severity': ['high'], 'detail': 'x'}]),
+    ('recommended_decision', None), ('recommended_decision', []), ('summary', {}),
+])
+def test_malformed_verdict_structures_fail_closed(monkeypatch, field, value):
+    v = _verdict()
+    v[field] = value
+    rep = _audit(_reviewer(monkeypatch, _chat(v)))
+    assert rep.llm_review['status'] == 'ERROR'
+    assert rep.auto_release_eligible is False
+
+
+@pytest.mark.parametrize('field,value', [('criterion', None), ('criterion', []), ('met', 'true'),
+                                        ('met', 1), ('reason', {}), ('evidence', [])])
+def test_malformed_criterion_fields_fail_closed(monkeypatch, field, value):
+    v = _verdict()
+    v['criteria'][0][field] = value
+    rep = _audit(_reviewer(monkeypatch, _chat(v)))
+    assert rep.llm_review['status'] == 'ERROR'
+    assert rep.auto_release_eligible is False
+
+
+@pytest.mark.parametrize('content', [None, [], {}, 10])
+def test_non_text_response_content_fails_closed(monkeypatch, content):
+    def handler(request):
+        return httpx.Response(200, json={'choices': [{'message': {'content': content}}]})
+    rep = _audit(_reviewer(monkeypatch, handler))
+    assert rep.llm_review['status'] == 'ERROR'
+    assert rep.auto_release_eligible is False
+
+
+def test_malformed_verdict_can_fall_back_to_valid_model(monkeypatch):
+    def handler(request):
+        body = json.loads(request.content)
+        v = _verdict()
+        if body['model'] == 'invalid-model':
+            v['risk_flags'] = [None]
+        return _chat(v)(request)
+    r = _reviewer(monkeypatch, handler, models='invalid-model,valid-model')
+    rep = _audit(r)
+    assert rep.auto_release_eligible is True
+    assert rep.llm_review['model'] == 'valid-model'
+    assert rep.llm_review['fallback_attempts'] == [
+        {'model': 'invalid-model', 'error': 'invalid verdict (ValueError)'}]
+
+
+def test_subthreshold_score_is_not_rounded_up_in_report(monkeypatch):
+    rep = _audit(_reviewer(monkeypatch, _chat(_verdict(conf=79.99))))
+    assert rep.confidence_score == 79.99
+    assert "79.99%" in rep.summary
+    assert rep.auto_release_eligible is False
+
+
+@pytest.mark.parametrize("rate", [0.999, 0.99999])
+def test_guardrail_mean_does_not_round_up_across_threshold(monkeypatch, rate):
+    rep = _audit(_reviewer(monkeypatch, _chat(_verdict(conf=100))), rate=rate, threshold=100)
+    assert rep.confidence_score < 100
+    assert rep.guardrail_decision == "HOLD_FOR_REVISION"
+    assert rep.auto_release_eligible is False

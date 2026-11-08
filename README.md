@@ -11,7 +11,9 @@ authorization stays on hold, or is **voided** back to the buyer.
 
 1. Open the hosted demo and click **Run a Fresh Replay Demo**. Each run creates an independent,
    clearly labelled simulated milestone, loads the implementation sample, and audits it. It never
-   calls PayPal; a configured AI reviewer may still be used. You can repeat this without resetting
+   calls PayPal; a configured AI reviewer may still be used. **Compare a Stub in Replay** starts a separate example so
+   you can compare the actual verdicts. Without a configured reviewer, guardrail-only Replay may miss
+   a keyword-heavy stub; the demo shows that result rather than forcing a rejection. You can repeat this without resetting
    anyone else's records.
 2. To compare artifacts manually, select an authorized milestone, load a real or stubbed deliverable,
    and review the contract criteria shown above the editor. The test pass rate is a **reported input**,
@@ -22,13 +24,21 @@ authorization stays on hold, or is **voided** back to the buyer.
 The dashboard disables conflicting actions while a request is active and offers a read-only refresh
 if a request fails. An uncertain network response is never retried automatically. If AG Grid's CDN
 is unavailable, a basic selectable ledger remains usable (CSV export requires AG Grid).
+The **Decision & Evidence** panel shows the final decision separately from the model recommendation and
+payment state. Its downloadable JSON report includes source/evidence SHA-256 fingerprints, criteria,
+reviewer results and the effective server policy. It does not separately embed the complete source, but
+review excerpts may quote input text. Reports are in-memory demo records, not signed or durable logs.
+
 Amounts are grouped by currency without conversion; totals explicitly include both Sandbox and Replay rows.
 
 ### Prototype limits and payment recovery
 
 This is a public **Sandbox-only demonstration**, not a production escrow service. Its shared ledger is
 in memory and resets on restart. Run a single backend process; production use needs durable storage,
-authentication, per-user isolation, reconciliation and operational controls. Per-record guards prevent
+authentication, per-user isolation, reconciliation and operational controls. PayPal authorizations last up to 29 days,
+with capture recommended within the first 3-day honor period. Later capture depends on risk checks
+and funds availability. Authorization renewal is not implemented, so this targets short-cycle
+milestones rather than indefinite escrow. [PayPal authorization timing](https://developer.paypal.com/payment-methods/auth-honor/). Per-record guards prevent
 concurrent audit/authorization/void operations within this single process.
 
 Only a `COMPLETED` capture with a capture ID is shown as settled and followed by an invoice.
@@ -43,9 +53,9 @@ Entered for the overall prizes, with these special prizes in mind (details and e
 
 | Prize | What to look at |
 |---|---|
-| **Best Use of PayPal + AI** | Gemini decides whether a PayPal authorization is captured, held or voided. Orders v2 `AUTHORIZE` → buyer approval → `/authorize`; Payments v2 capture/void; Invoicing v2 create/send/record-payment. The AI can only make the decision stricter. Real Sandbox evidence: `docs/render_live_buyer_approval_results.json`, `docs/sandbox_gemini_e2e_results.json`. |
+| **Best Use of PayPal + AI** | Gemini gates capture or a hold/dispute state; void is a separate operator action. Orders v2 `AUTHORIZE` → buyer approval → `/authorize`; Payments v2 capture/void; Invoicing v2 create/send/record-payment. The AI can only make the decision stricter. Real Sandbox evidence: `docs/render_live_buyer_approval_results.json`, `docs/sandbox_gemini_e2e_results.json`. |
 | **Best Use of AG Grid** | The escrow and reconciliation ledger (`frontend/index.html`): one row per escrow with the full PayPal ID chain, lifecycle-coloured state cells, live/replay data-source column, pinned ID, quick filter, row click → action panel, live refresh after each PayPal call, CSV export. |
-| **Best Demo Delivery** | [2:50 video](https://youtu.be/kL-quH7Iu8U) recorded on the live Render app against the real Sandbox, and the [hosted demo](https://paypilot-escrow-ai.onrender.com): judges can repeat the flow in about 2 minutes with the Sandbox test-card option. |
+| **Best Demo Delivery** | [2:50 video](https://youtu.be/kL-quH7Iu8U) recorded on the live Render app against the real Sandbox, and the [hosted demo](https://paypilot-escrow-ai.onrender.com): judges can repeat a Replay example or use the Sandbox test-card option; hosting and model latency varies. |
 | Best Use of Render | Runs as a Render web service from `render.yaml` (health check, secrets in env vars only). |
 
 ## How the PayPal flow works (live Sandbox mode)
@@ -80,7 +90,12 @@ reviewer is told to ignore instructions embedded in it.
 the AI's recommendation (`AUTO_CAPTURE_APPROVED` < `HOLD_FOR_REVISION` < `ESCALATE_DISPUTE`). The AI's
 "approve" only counts if every criterion is `met` and there is no `high` risk flag. Missing criteria count as
 unmet. In live Sandbox mode a missing, failed or invalid LLM verdict blocks auto-capture.
-The merged confidence (the lower of guardrail and LLM scores) must also meet the requested threshold.
+Each model verdict must cover the actual contract criteria, with no duplicate or unknown criterion;
+missing criteria are unmet. Malformed verdicts and non-finite confidence fail closed.
+The merged score (the lower of guardrail and LLM scores) must meet the server-owned minimum of 80%;
+a request can raise this threshold but cannot lower it. This minimum is application policy, not an
+assertion that a negotiated contract threshold has been stored. Scores are not calibrated probabilities
+of correctness. Deliverables over 30,000 characters are rejected instead of silently reviewing a prefix.
 The dashboard's **AI Reviewer Reasoning**
 panel shows the model, its decision, and the reason and evidence for each criterion, plus any risk flags.
 

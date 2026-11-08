@@ -89,6 +89,7 @@
     <div>
       <button id="export-button" class="secondary" onclick="exportCsv()" disabled>Export Ledger CSV</button>
       <button id="demo-button" data-action onclick="prefillAndRunDemo()" disabled>Run a Fresh Replay Demo</button>
+      <button id="stub-demo-button" data-action class="secondary" onclick="prefillAndRunDemo('stub')" disabled>Compare a Stub in Replay</button>
     </div>
   </header>
 
@@ -98,6 +99,7 @@
     2. Compare the real and stubbed deliverables in the auditor.
     3. Create a PayPal Sandbox hold to test the integration.<br />
     Sandbox prototype only. No real money. Shared, in-memory demo records reset when the service restarts.
+    PayPal authorizations last up to 29 days; capture is recommended within the first 3. This is not long-term escrow.
   </section>
   <div id="action-status" class="status-line" role="status" aria-live="polite">Loading the ledger… The hosted demo may take 30–60 seconds to wake up.</div>
   <button id="refresh-button" class="secondary" onclick="refreshDashboard()">Refresh ledger / retry loading</button>
@@ -156,10 +158,10 @@
         <button data-action class="secondary" onclick="loadSample('good')">Load real deliverable</button>
         <button data-action class="secondary" onclick="loadSample('stub')">Load stubbed deliverable</button>
       </div>
-      <textarea id="artifact-content" placeholder="Load a sample or paste a deliverable to review."></textarea>
+      <textarea id="artifact-content" maxlength="30000" placeholder="Load a sample or paste a deliverable to review."></textarea>
 
       <label for="acceptance-evidence">Acceptance Evidence for the AI Reviewer (test output, demo notes, optional)</label>
-      <textarea id="acceptance-evidence" style="height: 60px;" placeholder="e.g. pytest output: 12 passed"></textarea>
+      <textarea id="acceptance-evidence" maxlength="8000" style="height: 60px;" placeholder="e.g. pytest output: 12 passed"></textarea>
 
       <label for="test-pass-rate">Reported test pass rate (%)</label>
       <input id="test-pass-rate" type="number" min="0" max="100" step="1" value="98" />
@@ -182,6 +184,12 @@
           <option value="sandbox_test_card">Sandbox test card (instant real sandbox authorization)</option>
         </select>
         <button id="create-button" data-action class="secondary" onclick="createNewEscrowHold()" disabled>+ New AUTHORIZE Hold</button>
+      </div>
+
+      <div class="ai-panel" id="decision-panel">
+        <h4>Decision & Evidence</h4>
+        <div id="decision-body" class="selection-detail">Run an audit to see the final policy decision.</div>
+        <a id="audit-report-link" style="display:none;color:var(--paypal-cyan);" download>Download audit evidence (JSON)</a>
       </div>
 
       <div class="ai-panel" id="ai-panel">
@@ -221,7 +229,7 @@
         field: "ai_confidence",
         headerName: "AI Score",
         width: 105,
-        valueFormatter: p => p.data.ai_decision === "PENDING_DELIVERABLE" ? "Pending" : `${Number(p.value).toFixed(1)}%`
+        valueFormatter: p => p.data.ai_decision === "PENDING_DELIVERABLE" ? "Pending" : `${Number(p.value)}%`
       },
       {
         field: "paypal_mode",
@@ -440,6 +448,30 @@
       }
     }
 
+    function renderDecisionEvidence(m) {
+      const body = document.getElementById("decision-body");
+      const link = document.getElementById("audit-report-link");
+      body.replaceChildren();
+      link.style.display = "none";
+      const report = m && m.last_audit_report;
+      if (!report) {
+        body.textContent = "No audit evidence for this record in the current session. Seed rows are examples, not a new review.";
+        return;
+      }
+      const audit = report.audit;
+      body.appendChild(el("strong", audit.auto_release_eligible ? "ai-ok" : "ai-bad", `Final audit decision: ${audit.decision}`));
+      body.appendChild(el("div", null, `Merged score ${audit.confidence_score}% · required ${report.effective_threshold}% (server minimum ${report.server_minimum_threshold}%)`));
+      body.appendChild(el("div", null, `Guardrails: ${audit.guardrail_decision} · AI reviewer: ${audit.llm_review?.status || "unknown"}`));
+      body.appendChild(el("div", null, `Payment state: ${m.escrow_status}. Audit approval is not payment confirmation.`));
+      const list = el("ul");
+      (audit.checks || []).forEach(check => list.appendChild(el("li", null, `${check.passed ? "PASS" : "CHECK"} · ${check.criterion}: ${check.evidence}`)));
+      body.appendChild(list);
+      body.appendChild(el("div", null, `Evaluated ${report.evaluated_at}. Source SHA-256: ${report.artifact_sha256}`));
+      body.appendChild(el("div", null, "Code inspected, not executed. Reported test pass rate is submitter input. Evidence is an in-memory demo record, not a signed or durable audit trail."));
+      link.href = `/api/escrow/${encodeURIComponent(m.milestone_id)}/audit-report?download=true`;
+      link.style.display = "inline";
+    }
+
     function selectedMilestone() {
       const id = document.getElementById("milestone-select").value;
       return MILESTONES.find(m => m.milestone_id === id);
@@ -451,6 +483,7 @@
       box.style.display = m && m.escrow_status === "AWAITING_BUYER_APPROVAL" && m.approve_url ? "block" : "none";
       if (box.style.display === "block") document.getElementById("approve-link").href = m.approve_url;
       renderAiReviewer(m && m.ai_reviewer);
+      renderDecisionEvidence(m);
       const detail = document.getElementById("selection-detail");
       detail.replaceChildren();
       if (m) {
@@ -554,15 +587,15 @@
       }));
     }
 
-    async function prefillAndRunDemo() {
+    async function prefillAndRunDemo(sampleName = "good") {
       await runAction("Preparing a fresh Replay demo. Payments will be simulated; no PayPal calls are made.", async () => {
-        await fetchSample("good");
+        await fetchSample(sampleName);
         document.getElementById("test-pass-rate").value = "98";
         const created = await postJson("/api/demo/replay");
         if (!ledgerReady) return;
         document.getElementById("milestone-select").value = created.milestone.milestone_id;
         updateApprovalBox();
-        status("Auditing the fresh Replay milestone… Payments are simulated. The configured AI reviewer, if available, checks the sample.");
+        status(`Auditing the ${sampleName === "stub" ? "stubbed" : "implementation"} sample on a fresh Replay milestone… Payments are simulated. The actual verdict is shown, never forced.`);
         await postJson("/api/escrow/verify-and-settle", verificationPayload());
       });
     }
