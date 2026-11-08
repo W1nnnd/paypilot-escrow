@@ -7,8 +7,9 @@ Evaluates submitted freelancer deliverables against the contract milestone accep
 2. API / Endpoint Specification Check: Validates OpenAPI / JSON response schemas or SLA metrics.
 3. Documentation & Deliverable Completeness: Verifies required sections, deployment instructions,
    and acceptance checklist items.
-4. Optional LLM verdict (``LLMReviewer``, OpenAI-compatible API configured via ``AUDITOR_LLM_*`` env vars).
-   It can only make the result stricter; without a key the auditor runs guardrails only and says so.
+4. LLM verdict (``LLMReviewer``, OpenAI-compatible API configured via ``AUDITOR_LLM_*`` env vars).
+   It can only make the result stricter. A missing verdict blocks capture unless the caller explicitly
+   selects guardrail-only evaluation for simulated Replay records.
 5. Returns an explainable Audit Report with:
    - `confidence_score` (0.0 to 100.0)
    - `risk_score` (0.0 to 100.0)
@@ -215,7 +216,7 @@ def _normalise_verdict(v: dict[str, Any], required_criteria: list[str]) -> dict[
 
 
 class DeliverableAuditorAgent:
-    """Deterministic guardrails + optional LLM verdict for verifying software and API milestones."""
+    """Deterministic guardrails + required LLM verdict, except for explicit Replay simulations."""
 
     DANGEROUS_PATTERNS = [
         (r"AKIA[0-9A-Z]{16}", "Hardcoded AWS Access Key detected"),
@@ -235,6 +236,8 @@ class DeliverableAuditorAgent:
         test_pass_rate: float = 1.0,
         threshold: float = 80.0,
         evidence: str = "",
+        *,
+        require_llm: bool = True,
     ) -> AuditReport:
         checks: list[CriterionCheck] = []
         content_lower = artifact_content.lower()
@@ -356,14 +359,24 @@ class DeliverableAuditorAgent:
                 decision = llm_review["recommended_decision"]
             avg_score = min(avg_score, llm_review["confidence"])
             risk_score = max(risk_score, round(100.0 - llm_review["confidence"], 1))
-        elif llm_status == "ERROR" and decision == "AUTO_CAPTURE_APPROVED":
-            decision = "HOLD_FOR_REVISION"  # configured but unavailable -> never auto-release money
+        elif (llm_status != "NOT_CONFIGURED" or require_llm) and decision == "AUTO_CAPTURE_APPROVED":
+            # Fail closed for missing, failed or unexpected LLM status. Only an explicitly
+            # simulated Replay audit may use guardrails alone when no reviewer is configured.
+            decision = "HOLD_FOR_REVISION"
+
+        # The LLM can lower the merged confidence even when it recommends approval.
+        # Recheck the threshold after merging, without weakening an existing dispute/hold.
+        if decision == "AUTO_CAPTURE_APPROVED" and avg_score < threshold:
+            decision = "HOLD_FOR_REVISION"
 
         auto_release = decision == "AUTO_CAPTURE_APPROVED"
         llm_note = ""
         if llm_status == "OK":
             llm_note = f" AI reviewer ({llm_review['model']}): {llm_review['summary']}"
-        elif llm_status == "ERROR":
+        elif llm_status == "NOT_CONFIGURED":
+            llm_note = (" AI reviewer not configured, so auto-capture is blocked." if require_llm else
+                        " Replay simulation: AI reviewer not configured; guardrails only.")
+        else:
             llm_note = " AI reviewer unavailable, so auto-capture is blocked."
 
         if auto_release:

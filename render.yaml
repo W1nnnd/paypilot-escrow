@@ -16,7 +16,7 @@ services:
         sync: false
       - key: PAYPAL_CLIENT_SECRET
         sync: false
-      # Google Gemini API key for the AI reviewer. Without it the auditor runs guardrails only.
+      # Google Gemini API key. Without it live Sandbox auto-capture is blocked (Replay stays simulated).
       - key: GEMINI_API_KEY
         sync: false
       # Optional: PUBLIC_BASE_URL (PayPal return/cancel redirects; defaults to Render's RENDER_EXTERNAL_URL)

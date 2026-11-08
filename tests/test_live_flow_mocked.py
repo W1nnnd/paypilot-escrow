@@ -3,6 +3,9 @@ that PayPal errors are surfaced instead of being turned into fake success."""
 import json
 
 import httpx
+import pytest
+
+import backend.app as app_module
 from fastapi.testclient import TestClient
 
 from backend.app import app
@@ -60,7 +63,7 @@ def _create():
                               "Include automated unit tests for escrow state transitions"]})
 
 
-def test_live_buyer_approval_state_machine(use_client):
+def test_live_buyer_approval_state_machine(use_client, mocked_llm_approval):
     fake = FakePayPal()
     _live(use_client, fake)
     assert client.get("/api/paypal/status").json()["label"] == "PayPal Sandbox · live"
@@ -94,7 +97,7 @@ def test_live_buyer_approval_state_machine(use_client):
     assert "POST /v2/invoicing/invoices/INV2-TEST/payments" in fake.calls
 
 
-def test_live_capture_failure_is_not_reported_as_success(use_client):
+def test_live_capture_failure_is_not_reported_as_success(use_client, mocked_llm_approval):
     fake = FakePayPal()
     fake.approved = True
     fake.fail_capture = True
@@ -121,3 +124,48 @@ def test_bad_credentials_show_error_not_live(use_client):
 def test_client_repr_never_contains_secret():
     c = PayPalV2Client(client_id="ID-SHOULD-NOT-LEAK", client_secret="SECRET-SHOULD-NOT-LEAK")
     assert "LEAK" not in repr(c)
+
+
+@pytest.mark.parametrize("llm_case", ["missing", "below_threshold", "error", "unmet"])
+def test_live_audit_failure_never_calls_capture_or_invoice(use_client, monkeypatch, llm_case):
+    fake = FakePayPal()
+    fake.approved = True
+    _live(use_client, fake)
+    ms_id = _create().json()["milestone"]["milestone_id"]
+    assert client.post(f"/api/escrow/{ms_id}/authorize").status_code == 200
+    if llm_case != "missing":
+        verdict = {"status": "ERROR"} if llm_case == "error" else {
+            "status": "OK", "model": "mock-reviewer", "overall_pass": llm_case != "unmet",
+            "recommended_decision": "HOLD_FOR_REVISION" if llm_case == "unmet" else "AUTO_CAPTURE_APPROVED",
+            "confidence": 60.0 if llm_case == "below_threshold" else 98.0,
+            "summary": "Mocked failing review", "criteria": [], "risk_flags": [],
+        }
+        monkeypatch.setattr(app_module.auditor_agent.llm_reviewer, "review", lambda *args: verdict)
+    fake.calls.clear()
+    # A client-supplied extra field must not disable the server's live-mode LLM gate.
+    response = client.post("/api/escrow/verify-and-settle", json={
+        "milestone_id": ms_id, "artifact_content": GOOD_DELIVERABLE,
+        "test_pass_rate": 0.98, "auto_capture_threshold": 80, "require_llm": False,
+    })
+    assert response.status_code == 200
+    out = response.json()
+    assert out["audit_report"]["decision"] == "HOLD_FOR_REVISION"
+    assert out["audit_report"]["auto_release_eligible"] is False
+    assert out["paypal_capture"] is None and out["paypal_invoice"] is None
+    assert out["milestone"]["escrow_status"] == "HOLD_FOR_REVISION"
+    assert not fake.calls
+
+
+def test_seeded_replay_stays_simulated_when_global_client_is_live(use_client):
+    fake = FakePayPal()
+    _live(use_client, fake)
+    response = client.post("/api/escrow/verify-and-settle", json={
+        "milestone_id": "MS-1002", "artifact_content": GOOD_DELIVERABLE, "test_pass_rate": 0.98,
+    })
+    assert response.status_code == 200
+    out = response.json()
+    assert out["paypal_mode"] == "REPLAY_SIMULATED"
+    assert out["audit_report"]["llm_review"]["status"] == "NOT_CONFIGURED"
+    assert out["paypal_capture"]["simulated"] is True
+    assert out["paypal_invoice"]["simulated"] is True
+    assert not fake.calls

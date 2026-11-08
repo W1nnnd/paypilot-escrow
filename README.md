@@ -48,7 +48,9 @@ reviewer is told to ignore instructions embedded in it.
 **The AI can only make the decision stricter.** The final decision is the stricter of the guardrail decision and
 the AI's recommendation (`AUTO_CAPTURE_APPROVED` < `HOLD_FOR_REVISION` < `ESCALATE_DISPUTE`). The AI's
 "approve" only counts if every criterion is `met` and there is no `high` risk flag. Missing criteria count as
-unmet, and an LLM error or invalid output blocks auto-capture. The dashboard's **AI Reviewer Reasoning**
+unmet. In live Sandbox mode a missing, failed or invalid LLM verdict blocks auto-capture.
+The merged confidence (the lower of guardrail and LLM scores) must also meet the requested threshold.
+The dashboard's **AI Reviewer Reasoning**
 panel shows the model, its decision, and the reason and evidence for each criterion, plus any risk flags.
 
 Model choice: `gemini-2.5-flash` is tried first. Google now returns 404 for it on new API keys, so the reviewer
@@ -64,7 +66,8 @@ loaded from the dashboard.
 Without credentials (or with `PAYPAL_MODE=replay`) the app makes **no PayPal calls**. Every ID is prefixed
 `SIM-`, payloads carry `"simulated": true`, and the UI shows **Replay (simulated)**. The four seeded demo rows
 are always replay data, even in live mode. The UI shows **PayPal Sandbox · live** only after PayPal has issued
-an OAuth token to this process.
+an OAuth token to this process. Only Replay records may use guardrail-only simulated settlement
+when the AI reviewer is not configured; this exception cannot enable a live Sandbox capture.
 
 ## Configuration (environment variables only, never commit secrets)
 
@@ -74,7 +77,7 @@ an OAuth token to this process.
 | `PAYPAL_MODE=replay` | Force Replay (simulated) mode. |
 | `PUBLIC_BASE_URL` | Optional base URL for PayPal's return/cancel redirects. Defaults to Render's automatic `RENDER_EXTERNAL_URL`, then to the request host. |
 | `PAYPAL_INVOICE_NOTIFY_RECIPIENT=true` | Let PayPal e-mail the invoice to the buyer (default: off). |
-| `GEMINI_API_KEY` (or `AUDITOR_LLM_API_KEY`, which takes precedence) | Enables the AI reviewer. Without it the auditor runs guardrails only and the UI says so. |
+| `GEMINI_API_KEY` (or `AUDITOR_LLM_API_KEY`, which takes precedence) | Enables the AI reviewer. Without it live Sandbox auto-capture is blocked; only Replay records may simulate settlement with guardrails alone. |
 | `AUDITOR_LLM_MODEL` | Comma-separated models to try in order. Default `gemini-2.5-flash,gemini-3.5-flash,gemini-3.5-flash-lite`. |
 | `AUDITOR_LLM_BASE_URL` | OpenAI-compatible base URL. Default: Gemini's `…/v1beta/openai`. |
 | `AUDITOR_LLM_TIMEOUT` | Seconds per LLM call (default 45). |
@@ -91,8 +94,11 @@ python scripts/sandbox_e2e.py http://localhost:8080       # live PayPal Sandbox 
 Test suites: `tests/test_replay.py` (simulated mode), `tests/test_live_flow_mocked.py` (live code path against
 a mocked PayPal API, incl. error handling), `tests/test_auditor_llm.py` (LLM reviewer with a mocked endpoint: fallback, strict-only merging, errors),
 `tests/test_live_sandbox.py` (real Sandbox calls, skipped without PayPal credentials),
-`tests/test_live_gemini.py` (real Gemini calls, skipped without a key). Apart from `test_live_gemini.py`, all
-tests run guardrails-only, so they stay deterministic even when a key is set.
+`tests/test_live_gemini.py` (real Gemini calls, skipped without a key). Other tests default to an
+unconfigured reviewer or explicitly mock its approval to isolate the payment path; they never call Gemini.
+Run `pytest -q -m "not live and not live_llm"` for the offline suite, including missing-reviewer,
+merged-confidence threshold, and no-capture/no-invoice regression checks. Real Sandbox tests create
+test transactions and should only be run when that is intended.
 
 ## Stack
 

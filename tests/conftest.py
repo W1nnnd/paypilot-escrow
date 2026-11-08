@@ -39,9 +39,9 @@ def use_client(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def guardrails_only_by_default(request, monkeypatch):
-    """Unless a test is marked ``live_llm``, the app's auditor runs without an LLM so the suite is
-    deterministic and never spends API quota (even when GEMINI_API_KEY is set)."""
+def unconfigured_llm_by_default(request, monkeypatch):
+    """Unless a test is marked ``live_llm``, disable the real LLM. Tests may explicitly install
+    a mock verdict; the default never spends API quota (even when GEMINI_API_KEY is set)."""
     if request.node.get_closest_marker("live_llm"):
         yield
         return
@@ -51,3 +51,17 @@ def guardrails_only_by_default(request, monkeypatch):
     reviewer.api_key = ""
     monkeypatch.setattr(app_module.auditor_agent, "llm_reviewer", reviewer)
     yield
+
+
+@pytest.fixture
+def mocked_llm_approval(monkeypatch):
+    """Explicit successful LLM test double; never calls a model or spends API quota."""
+    def review(required_criteria, artifact_type, artifact_content, evidence=""):
+        return {
+            "status": "OK", "model": "mock-reviewer", "overall_pass": True,
+            "recommended_decision": "AUTO_CAPTURE_APPROVED", "confidence": 98.0,
+            "criteria": [{"criterion": c, "met": True, "reason": "Test double", "evidence": "Test double"}
+                         for c in required_criteria],
+            "risk_flags": [], "summary": "Mock approval for payment-path isolation.",
+        }
+    monkeypatch.setattr(app_module.auditor_agent.llm_reviewer, "review", review)

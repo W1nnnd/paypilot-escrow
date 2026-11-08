@@ -264,7 +264,7 @@ def test_escrow_state_transitions():
         const llm = st.llm_review || {};
         sub.textContent += st.llm_review_configured
           ? ` · AI reviewer: ${llm.active_model || (llm.candidate_models || [])[0] || "configured"}`
-          : " · AI reviewer not configured (guardrails only)";
+          : " · AI reviewer not configured (live capture blocked; Replay uses guardrails)";
       } catch (e) {
         el.textContent = "Status unavailable";
       }
@@ -293,7 +293,7 @@ def test_escrow_state_transitions():
       }
       if (r.status !== "OK") {
         body.appendChild(el("div", "ai-bad", r.status === "NOT_CONFIGURED"
-          ? "AI reviewer not configured — decision made by deterministic guardrails only."
+          ? "AI reviewer not configured — live Sandbox capture blocked; Replay uses guardrails only."
           : "AI reviewer unavailable — auto-capture blocked."));
         return;
       }

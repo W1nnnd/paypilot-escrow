@@ -28,7 +28,7 @@ SAMPLES = {"good": "good_capture_endpoint.py", "stub": "stub_deliverable.py"}
 
 app = FastAPI(
     title="PayPilot Escrow — AI-audited milestone escrow on PayPal",
-    version="1.1.0",
+    version="1.1.1",
     description=(
         "Locks milestone funds with a PayPal Orders v2 AUTHORIZE order the buyer approves, audits the deliverable, "
         "then captures (or keeps on hold / voids) the authorization and issues a PayPal invoice."
@@ -232,6 +232,8 @@ async def health_check() -> dict[str, Any]:
     return {
         "status": "ok",
         "service": "paypilot-escrow-ai",
+        "version": app.version,
+        "source_commit": os.environ.get("RENDER_GIT_COMMIT"),
         "paypal_mode": paypal_client.mode,
         "llm_review_configured": auditor_agent.llm_reviewer.configured,
         "llm_review": auditor_agent.llm_reviewer.describe(),
@@ -412,6 +414,8 @@ async def verify_and_settle_milestone(req: VerifyDeliverableRequest) -> dict[str
         test_pass_rate=req.test_pass_rate,
         threshold=req.auto_capture_threshold,
         evidence=req.acceptance_evidence,
+        # This policy comes from the server-owned record, never from the request body.
+        require_llm=ms.get("paypal_mode") != REPLAY_MODE,
     )
     ms["ai_confidence"] = audit.confidence_score
     ms["risk_score"] = audit.risk_score

@@ -42,14 +42,45 @@ def _chat(verdict, seen=None):
     return handler
 
 
-def _audit(r, content=GOOD_DELIVERABLE, rate=0.98):
-    return DeliverableAuditorAgent(r).evaluate_deliverable("M", CRITERIA, "python_code", content, rate)
+def _audit(r, content=GOOD_DELIVERABLE, rate=0.98, **kwargs):
+    return DeliverableAuditorAgent(r).evaluate_deliverable("M", CRITERIA, "python_code", content, rate, **kwargs)
 
 
-def test_not_configured_by_default():
+def test_not_configured_blocks_capture_by_default():
     rep = _audit(LLMReviewer())
     assert rep.llm_review["status"] == "NOT_CONFIGURED"
+    assert rep.guardrail_decision == "AUTO_CAPTURE_APPROVED"
+    assert rep.decision == "HOLD_FOR_REVISION"
+    assert rep.auto_release_eligible is False
+    assert "not configured" in rep.summary and "blocked" in rep.summary
+
+
+def test_explicit_replay_can_use_guardrails_without_llm():
+    rep = _audit(LLMReviewer(), require_llm=False)
+    assert rep.llm_review["status"] == "NOT_CONFIGURED"
     assert rep.decision == "AUTO_CAPTURE_APPROVED"
+    assert rep.auto_release_eligible is True
+    assert "Replay" in rep.summary
+
+
+def test_missing_llm_does_not_downgrade_guardrail_dispute():
+    rep = _audit(LLMReviewer(), content=BAD_DELIVERABLE, rate=0.3)
+    assert rep.decision == "ESCALATE_DISPUTE"
+    assert rep.auto_release_eligible is False
+
+
+@pytest.mark.parametrize("confidence, threshold, eligible", [
+    (0, 80, False), (60, 80, False), (79.9, 80, False),
+    (80, 80, True), (80.1, 80, True), (94.9, 95, False), (95, 95, True),
+])
+def test_merged_llm_confidence_must_meet_threshold(monkeypatch, confidence, threshold, eligible):
+    rep = _audit(_reviewer(monkeypatch, _chat(_verdict(conf=confidence))), threshold=threshold)
+    assert rep.guardrail_decision == "AUTO_CAPTURE_APPROVED"
+    assert rep.confidence_score == confidence
+    assert rep.auto_release_eligible is eligible
+    assert rep.decision == ("AUTO_CAPTURE_APPROVED" if eligible else "HOLD_FOR_REVISION")
+    if not eligible:
+        assert "Eligible for" not in rep.summary
 
 
 def test_gemini_key_fallback_and_default_base_url(monkeypatch):
@@ -120,3 +151,13 @@ def test_llm_garbage_output_blocks_capture(monkeypatch):
 def test_reviewer_repr_hides_key(monkeypatch):
     monkeypatch.setenv("AUDITOR_LLM_API_KEY", "KEY-SHOULD-NOT-LEAK")
     assert "LEAK" not in repr(LLMReviewer()) and "LEAK" not in json.dumps(LLMReviewer().describe())
+
+
+@pytest.mark.parametrize("status", ["ERROR", "UNEXPECTED"])
+@pytest.mark.parametrize("require_llm", [True, False])
+def test_failed_reviewer_blocks_capture_even_in_replay(monkeypatch, status, require_llm):
+    reviewer = LLMReviewer()
+    monkeypatch.setattr(reviewer, "review", lambda *args: {"status": status})
+    rep = _audit(reviewer, require_llm=require_llm)
+    assert rep.decision == "HOLD_FOR_REVISION"
+    assert rep.auto_release_eligible is False

@@ -42,7 +42,7 @@ def test_live_buyer_approval_order_is_created_and_waits(live):
     assert r.json()["detail"]["paypal_error"]["details"][0]["issue"] == "ORDER_NOT_APPROVED"
 
 
-def test_live_test_card_authorize_capture_invoice(live):
+def test_live_test_card_authorize_capture_invoice(live, mocked_llm_approval):
     body = client.post("/api/escrow/create", json={"project_name": "Live card", "milestone_title": "Capture path", "amount": 25.0,
                                                    "funding": "sandbox_test_card", "required_criteria": CRITERIA}).json()
     ms = body["milestone"]
