@@ -7,6 +7,36 @@ Built for the **PayPal AI Hackathon** (Devpost).
 criteria; PayPal **captures** the funds and issues an **invoice** only when the audit passes. Otherwise the
 authorization stays on hold, or is **voided** back to the buyer.
 
+## Quick judge walkthrough
+
+1. Open the hosted demo and click **Run a Fresh Replay Demo**. Each run creates an independent,
+   clearly labelled simulated milestone, loads the implementation sample, and audits it. It never
+   calls PayPal; a configured AI reviewer may still be used. You can repeat this without resetting
+   anyone else's records.
+2. To compare artifacts manually, select an authorized milestone, load a real or stubbed deliverable,
+   and review the contract criteria shown above the editor. The test pass rate is a **reported input**,
+   not measured execution: this prototype inspects submitted code but does not run it.
+3. For the actual integration, create a new **PayPal Sandbox** hold with buyer approval or the sandbox
+   test-card option, then audit its deliverable. The state, IDs and AI reasons are visible in the ledger.
+
+The dashboard disables conflicting actions while a request is active and offers a read-only refresh
+if a request fails. An uncertain network response is never retried automatically. If AG Grid's CDN
+is unavailable, a basic selectable ledger remains usable (CSV export requires AG Grid).
+Amounts are grouped by currency without conversion; totals explicitly include both Sandbox and Replay rows.
+
+### Prototype limits and payment recovery
+
+This is a public **Sandbox-only demonstration**, not a production escrow service. Its shared ledger is
+in memory and resets on restart. Run a single backend process; production use needs durable storage,
+authentication, per-user isolation, reconciliation and operational controls. Per-record guards prevent
+concurrent audit/authorization/void operations within this single process.
+
+Only a `COMPLETED` capture with a capture ID is shown as settled and followed by an invoice.
+`CAPTURE_PENDING`, `CAPTURE_UNKNOWN` and `VOID_UNKNOWN` block further payment actions and require manual
+PayPal reconciliation. A network failure or server error can leave the outcome uncertain; do not blindly
+retry. There is no automatic reconciliation endpoint in this prototype. A confirmed capture remains
+settled if invoice creation fails; the invoice error is reported separately.
+
 ## Prize tracks
 
 Entered for the overall prizes, with these special prizes in mind (details and evidence: [`docs/DEVPOST_SUBMISSION.md`](docs/DEVPOST_SUBMISSION.md#prize-tracks-we-are-targeting)):
@@ -30,7 +60,8 @@ Entered for the overall prizes, with these special prizes in mind (details and e
 | 5b. Receipt | `POST /v2/invoicing/invoices` → `/send` → `/payments` | Invoice created, sent (no e-mail by default) and recorded as paid with the capture ID → `MARKED_AS_PAID`. |
 | 5c. Fail | — / `POST /v2/payments/authorizations/{id}/void` | `HOLD_FOR_REVISION` or `DISPUTE_FROZEN` keeps the hold; **Void Hold** releases it to the buyer. |
 
-Any PayPal error is returned as HTTP 502 with PayPal's error name and `debug_id`; nothing is ever faked.
+PayPal API errors are returned as HTTP 502 with the available error name and `debug_id`.
+Uncertain capture/void outcomes are labelled explicitly and block further payment actions.
 
 **Sandbox test-card shortcut.** For demos without a Sandbox buyer login, choose *Sandbox test card* when
 creating a hold. The order is paid with PayPal's public sandbox test card, so PayPal authorizes it immediately
@@ -87,7 +118,8 @@ when the AI reviewer is not configured; this exception cannot enable a live Sand
 ```bash
 pip install -r requirements.txt
 uvicorn backend.app:app --host 0.0.0.0 --port 8080        # open http://localhost:8080
-pytest -q                                                 # live Sandbox tests run only when credentials are set
+pytest -q -m "not live and not live_llm"                   # offline suite only
+npm ci && npm test                                        # dashboard DOM unit regressions (Node 18+)
 python scripts/sandbox_e2e.py http://localhost:8080       # live PayPal Sandbox + Gemini run; writes docs/sandbox_gemini_e2e_results.json
 ```
 
@@ -97,7 +129,9 @@ a mocked PayPal API, incl. error handling), `tests/test_auditor_llm.py` (LLM rev
 `tests/test_live_gemini.py` (real Gemini calls, skipped without a key). Other tests default to an
 unconfigured reviewer or explicitly mock its approval to isolate the payment path; they never call Gemini.
 Run `pytest -q -m "not live and not live_llm"` for the offline suite, including missing-reviewer,
-merged-confidence threshold, and no-capture/no-invoice regression checks. Real Sandbox tests create
+merged-confidence threshold, no-capture/no-invoice, concurrency, currency grouping, repeatable Replay,
+and uncertain-payment regression checks. Dashboard DOM tests cover loading failures, busy controls,
+repeat runs, safe text rendering, and partial-success recovery; they are not visual browser tests. Real Sandbox tests create
 test transactions and should only be run when that is intended.
 
 ## Stack

@@ -37,6 +37,33 @@
     button { background: linear-gradient(135deg, var(--paypal-blue), var(--paypal-cyan)); color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; }
     button.secondary { background: #1e2d47; border: 1px solid var(--border); }
     button:hover { opacity: 0.92; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--paypal-cyan); outline-offset: 3px; }
+    .demo-guide { margin-bottom: 18px; padding: 14px 18px; border: 1px solid var(--border); border-radius: 10px; line-height: 1.6; font-size: 13px; color: var(--muted); }
+    .demo-guide strong { color: var(--text); }
+    .status-line { padding: 10px 12px; margin: 12px 0; border-left: 3px solid var(--paypal-cyan); background: #0d1524; font-size: 13px; line-height: 1.5; }
+    .status-line[data-kind="error"] { border-color: var(--red); }
+    .status-line[data-kind="success"] { border-color: var(--green); }
+    .selection-detail { color: var(--muted); font-size: 12px; line-height: 1.6; margin-bottom: 12px; overflow-wrap: anywhere; }
+    .selection-detail ul { padding-left: 18px; }
+    .fallback-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+    .fallback-table th, .fallback-table td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; }
+    header, .brand { flex-wrap: wrap; gap: 12px; }
+    header > div:last-child { display: flex; flex-wrap: wrap; gap: 8px; }
+    .panel-header { gap: 12px; flex-wrap: wrap; }
+    .panel { min-width: 0; }
+    .kpi-value { overflow-wrap: anywhere; }
+    #kpi-locked, #kpi-settled { font-size: 20px; white-space: pre-line; }
+    @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) {
+      body { padding: 14px; }
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .brand h2 { font-size: 22px; }
+      .panel { padding: 12px; }
+      .gantt-row { grid-template-columns: 120px 1fr 45px; gap: 8px; }
+      .action-row { flex-wrap: wrap; }
+      .action-row > * { min-width: 0; }
+    }
     select, input, textarea { width: 100%; background: #0d1524; border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 13px; margin-top: 4px; margin-bottom: 10px; }
     textarea { font-family: 'JetBrains Mono', monospace; font-size: 12px; height: 125px; }
     label { font-size: 12px; color: var(--muted); font-weight: 600; }
@@ -60,23 +87,34 @@
       <span class="badge">AG Grid Financial Workbench</span>
     </div>
     <div>
-      <button class="secondary" onclick="exportCsv()">Export Ledger CSV</button>
-      <button onclick="prefillAndRunDemo()">One-Click AI Audit & Auto-Capture Demo</button>
+      <button id="export-button" class="secondary" onclick="exportCsv()" disabled>Export Ledger CSV</button>
+      <button id="demo-button" data-action onclick="prefillAndRunDemo()" disabled>Run a Fresh Replay Demo</button>
     </div>
   </header>
 
+  <section class="demo-guide" aria-label="Demo guide">
+    <strong>Review the work. Release only when it passes.</strong><br />
+    1. Try a fresh Replay demo, with simulated payments and no PayPal calls.
+    2. Compare the real and stubbed deliverables in the auditor.
+    3. Create a PayPal Sandbox hold to test the integration.<br />
+    Sandbox prototype only. No real money. Shared, in-memory demo records reset when the service restarts.
+  </section>
+  <div id="action-status" class="status-line" role="status" aria-live="polite">Loading the ledger… The hosted demo may take 30–60 seconds to wake up.</div>
+  <button id="refresh-button" class="secondary" onclick="refreshDashboard()">Refresh ledger / retry loading</button>
+  <p id="ledger-source" class="selection-detail" style="margin-top:10px;">Waiting for current data. Amounts are shown separately by currency, without conversion.</p>
+
   <section class="kpi-grid">
     <div class="kpi-card">
-      <div class="kpi-label">Active Escrow Milestones</div>
-      <div class="kpi-value" id="kpi-total">4</div>
+      <div class="kpi-label">Ledger Milestones</div>
+      <div class="kpi-value" id="kpi-total">—</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">PayPal Authorized Hold (Locked)</div>
-      <div class="kpi-value" id="kpi-locked" style="color: var(--amber);">$9,150.00</div>
+      <div class="kpi-label">Held Amounts · by Currency</div>
+      <div class="kpi-value" id="kpi-locked" style="color: var(--amber);">—</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">AI-Verified & Captured (Settled)</div>
-      <div class="kpi-value" id="kpi-settled" style="color: var(--green);">$2,400.00</div>
+      <div class="kpi-label">Captured Amounts · by Currency</div>
+      <div class="kpi-value" id="kpi-settled" style="color: var(--green);">—</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">PayPal Connection</div>
@@ -89,7 +127,7 @@
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">AG Grid Escrow & Reconciliation Ledger</span>
-        <input type="text" id="quick-filter" placeholder="Filter by Order ID, Contract, Email, or Status..." style="width: 280px; margin: 0;" oninput="onFilterTextBoxChanged()" />
+        <input type="text" id="quick-filter" aria-label="Filter ledger" placeholder="Filter by Order ID, Contract, Email, or Status..." style="width: 280px; margin: 0;" oninput="onFilterTextBoxChanged()" />
       </div>
       <div id="escrowGrid" class="ag-theme-quartz-dark" style="height: 330px; width: 100%;"></div>
 
@@ -103,55 +141,47 @@
       <div class="panel-header">
         <span class="panel-title">Autonomous AI Deliverable Auditor & PayPal Capture Trigger</span>
       </div>
-      <label>Target Escrow Milestone</label>
-      <select id="milestone-select"></select>
+      <label for="milestone-select">Target Escrow Milestone</label>
+      <select id="milestone-select" data-action disabled></select>
+      <div id="selection-detail" class="selection-detail"></div>
 
-      <label>Deliverable Artifact Type</label>
+      <label for="artifact-type">Deliverable Artifact Type</label>
       <select id="artifact-type">
         <option value="python_code">Python Source Code / FastAPI Endpoint Patch</option>
         <option value="api_spec">OpenAPI / Webhook Verification Spec</option>
       </select>
 
-      <label>Submitted Deliverable Payload (Verified against Milestone Contract Criteria)</label>
+      <label for="artifact-content">Submitted Deliverable Payload (Checked against Contract Criteria)</label>
       <div style="display:flex; gap:8px; margin: 4px 0 2px;">
-        <button class="secondary" onclick="loadSample('good')">Load real deliverable</button>
-        <button class="secondary" onclick="loadSample('stub')">Load stubbed deliverable</button>
+        <button data-action class="secondary" onclick="loadSample('good')">Load real deliverable</button>
+        <button data-action class="secondary" onclick="loadSample('stub')">Load stubbed deliverable</button>
       </div>
-      <textarea id="artifact-content">from fastapi import APIRouter
-import httpx
+      <textarea id="artifact-content" placeholder="Load a sample or paste a deliverable to review."></textarea>
 
-router = APIRouter()
-
-async def capture_paypal_escrow_authorization(auth_id: str, amount: float) -> dict:
-    """Provide FastAPI endpoint for PayPal authorization capture and invoice creation."""
-    return {"authorization_id": auth_id, "status": "COMPLETED", "invoice_created": True}
-
-def test_escrow_state_transitions():
-    """Include automated unit tests for escrow state transitions."""
-    assert True
-</textarea>
-
-      <label>Acceptance Evidence for the AI Reviewer (test output, demo notes — optional)</label>
+      <label for="acceptance-evidence">Acceptance Evidence for the AI Reviewer (test output, demo notes, optional)</label>
       <textarea id="acceptance-evidence" style="height: 60px;" placeholder="e.g. pytest output: 12 passed"></textarea>
 
-      <div style="display: flex; gap: 10px; margin-bottom: 12px;">
-        <button style="flex: 1;" onclick="submitVerification()">Run AI Audit & Trigger PayPal Capture</button>
-        <button class="secondary" onclick="voidSelected()">Void Hold</button>
+      <label for="test-pass-rate">Reported test pass rate (%)</label>
+      <input id="test-pass-rate" type="number" min="0" max="100" step="1" value="98" />
+      <p class="selection-detail">Demo input, not a test result: submitted code is inspected, not executed. Attach actual test output above when available.</p>
+      <div class="action-row" style="display: flex; gap: 10px; margin-bottom: 12px;">
+        <button id="audit-button" data-action style="flex: 1;" onclick="submitVerification()" disabled>Run AI Audit & Trigger PayPal Capture</button>
+        <button id="void-button" data-action class="secondary" onclick="voidSelected()" disabled>Void Hold</button>
       </div>
 
       <div id="approval-box" style="display:none; border: 1px dashed var(--amber); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 12.5px;">
         <div style="margin-bottom: 8px;">Buyer approval required: this PayPal Sandbox order is waiting for the buyer to log in with a <strong>Sandbox personal account</strong> and approve.</div>
-        <a id="approve-link" href="#" target="_self"><button>Approve on PayPal Sandbox</button></a>
-        <button class="secondary" onclick="authorizeSelected()">I approved — authorize now</button>
+        <a id="approve-link" href="#" target="_self" style="color:var(--paypal-cyan);">Approve on PayPal Sandbox</a>
+        <button id="authorize-button" data-action class="secondary" onclick="authorizeSelected()" disabled>I approved — authorize now</button>
       </div>
 
-      <label>New Escrow Funding (live sandbox only)</label>
+      <label for="funding">New Escrow Funding (PayPal Sandbox when configured)</label>
       <div style="display: flex; gap: 10px; margin-bottom: 12px;">
         <select id="funding" style="flex: 1; margin: 0;">
           <option value="paypal_buyer_approval">Buyer approves on PayPal (real checkout redirect)</option>
           <option value="sandbox_test_card">Sandbox test card (instant real sandbox authorization)</option>
         </select>
-        <button class="secondary" onclick="createNewEscrowHold()">+ New AUTHORIZE Hold</button>
+        <button id="create-button" data-action class="secondary" onclick="createNewEscrowHold()" disabled>+ New AUTHORIZE Hold</button>
       </div>
 
       <div class="ai-panel" id="ai-panel">
@@ -174,7 +204,7 @@ def test_escrow_state_transitions():
         field: "amount",
         headerName: "Escrow Amount",
         width: 135,
-        valueFormatter: p => `${p.data.currency} $${Number(p.value).toLocaleString(undefined, {minimumFractionDigits: 2})}`
+        valueFormatter: p => formatMoney(p.value, p.data.currency)
       },
       {
         field: "escrow_status",
@@ -191,7 +221,7 @@ def test_escrow_state_transitions():
         field: "ai_confidence",
         headerName: "AI Score",
         width: 105,
-        valueFormatter: p => p.value ? `${p.value.toFixed(1)}%` : "Pending"
+        valueFormatter: p => p.data.ai_decision === "PENDING_DELIVERABLE" ? "Pending" : `${Number(p.value).toFixed(1)}%`
       },
       {
         field: "paypal_mode",
@@ -212,67 +242,160 @@ def test_escrow_state_transitions():
       defaultColDef: { sortable: true, filter: true, resizable: true },
       animateRows: true,
       onRowClicked: e => {
+        if (busy) return;
         document.getElementById("milestone-select").value = e.data.milestone_id;
         updateApprovalBox();
       }
     };
 
+    let MILESTONES = [];
+    let busy = false;
+    let ledgerReady = false;
+    let uncertainOutcome = false;
+
+    function formatMoney(value, currency) {
+      const amount = Number(value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      return `${currency} ${amount}`;
+    }
+
+    function status(message, kind = "info") {
+      const output = document.getElementById("action-status");
+      output.textContent = message;
+      output.dataset.kind = kind;
+    }
+
+    function updateControls() {
+      document.querySelectorAll("[data-action]").forEach(button => button.disabled = busy || !ledgerReady || uncertainOutcome);
+      document.getElementById("refresh-button").disabled = busy;
+      document.getElementById("export-button").disabled = !gridApi || !ledgerReady;
+      document.getElementById("artifact-content").disabled = busy;
+      document.getElementById("artifact-type").disabled = busy;
+      document.getElementById("acceptance-evidence").disabled = busy;
+      document.getElementById("test-pass-rate").disabled = busy;
+      document.getElementById("funding").disabled = busy;
+      const m = selectedMilestone();
+      if (!m || !["ESCROW_AUTHORIZED", "HOLD_FOR_REVISION"].includes(m.escrow_status)) document.getElementById("audit-button").disabled = true;
+      if (!m || !["ESCROW_AUTHORIZED", "HOLD_FOR_REVISION", "DISPUTE_FROZEN"].includes(m.escrow_status)) document.getElementById("void-button").disabled = true;
+      if (!m || m.escrow_status !== "AWAITING_BUYER_APPROVAL") document.getElementById("authorize-button").disabled = true;
+      document.getElementById("approve-link").style.display = busy || uncertainOutcome ? "none" : "inline";
+    }
+
+    async function apiJson(url, body, method = "GET") {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), method === "GET" ? 90000 : 240000);
+      try {
+        const res = await fetch(url, {method, signal: controller.signal,
+          headers: {"Content-Type": "application/json"}, body: body === undefined ? undefined : JSON.stringify(body)});
+        let out;
+        try { out = await res.json(); }
+        catch (_) { throw new Error(`The server returned an unreadable response (HTTP ${res.status}).`); }
+        if (!res.ok) {
+          const detail = typeof out.detail === "string" ? out.detail : JSON.stringify(out.detail || out);
+          const err = new Error(`HTTP ${res.status}: ${detail}`);
+          err.response = out;
+          throw err;
+        }
+        return out;
+      } catch (err) {
+        if (err.name === "AbortError") err = new Error("The request timed out.");
+        if (method !== "GET" && !err.response) {
+          uncertainOutcome = true;
+          err.message += " The operation may still have completed. Refresh the ledger before retrying; nothing was retried automatically.";
+        }
+        throw err;
+      } finally { clearTimeout(timer); }
+    }
+
+    async function runAction(message, action) {
+      if (busy || uncertainOutcome || !ledgerReady) return;
+      busy = true;
+      updateControls();
+      status(message);
+      try { await action(); }
+      catch (err) {
+        status(err.message, "error");
+        if (err.response) document.getElementById("audit-output").textContent = JSON.stringify(err.response, null, 2);
+      } finally { busy = false; updateControls(); }
+    }
+
     function onFilterTextBoxChanged() {
-      gridApi.setGridOption("quickFilterText", document.getElementById("quick-filter").value);
+      if (gridApi) gridApi.setGridOption("quickFilterText", document.getElementById("quick-filter").value);
+      else renderFallbackLedger();
     }
 
     function exportCsv() {
-      gridApi.exportDataAsCsv({ fileName: "PayPilot_Escrow_Ledger_2026.csv" });
+      if (gridApi) gridApi.exportDataAsCsv({ fileName: "PayPilot_Escrow_Ledger.csv", processCellCallback: p => {
+        const value = String(p.value ?? "");
+        return /^[=+@\-\t\r]/.test(value) ? "'" + value : value;
+      }});
+    }
+
+    function renderFallbackLedger() {
+      const host = document.getElementById("escrowGrid");
+      host.replaceChildren(el("p", "selection-detail", "AG Grid could not load. The basic ledger below remains available; CSV export requires AG Grid."));
+      host.style.overflow = "auto";
+      const table = el("table", "fallback-table");
+      const head = el("tr");
+      ["Milestone", "Amount", "State", "Source"].forEach(label => head.appendChild(el("th", null, label)));
+      table.appendChild(head);
+      const query = document.getElementById("quick-filter").value.toLowerCase();
+      MILESTONES.filter(m => JSON.stringify(m).toLowerCase().includes(query)).forEach(m => {
+        const row = el("tr");
+        const id = el("td");
+        const pick = el("button", "secondary", m.milestone_id);
+        pick.onclick = () => { if (!busy) { document.getElementById("milestone-select").value = m.milestone_id; updateApprovalBox(); } };
+        id.appendChild(pick); row.appendChild(id);
+        [formatMoney(m.amount, m.currency), m.escrow_status, m.paypal_mode === "LIVE_SANDBOX" ? "Sandbox" : "Replay"].forEach(value => row.appendChild(el("td", null, value)));
+        table.appendChild(row);
+      });
+      host.appendChild(table);
     }
 
     function renderGantt(milestones) {
       const container = document.getElementById("ganttContainer");
-      container.innerHTML = milestones.map(m => {
+      container.replaceChildren();
+      milestones.forEach(m => {
         const color = m.escrow_status === "CAPTURED_SETTLED" ? "#10b981" : (m.escrow_status === "ESCROW_AUTHORIZED" ? "#00a8ea" : "#f59e0b");
-        return `
-          <div class="gantt-row">
-            <div><strong>${m.milestone_id}</strong> · ${m.due_date}</div>
-            <div class="gantt-bar-bg">
-              <div class="gantt-bar-fill" style="width: ${m.progress_pct}%; background: ${color};"></div>
-            </div>
-            <div style="text-align: right; color: ${color}; font-weight: 600;">${m.progress_pct}%</div>
-          </div>
-        `;
-      }).join("");
+        const progress = Math.max(0, Math.min(100, Number(m.progress_pct) || 0));
+        const row = el("div", "gantt-row");
+        row.appendChild(el("div", null, `${m.milestone_id} · ${m.due_date}`));
+        const track = el("div", "gantt-bar-bg");
+        const bar = el("div", "gantt-bar-fill");
+        bar.style.width = `${progress}%`; bar.style.background = color;
+        track.appendChild(bar); row.appendChild(track);
+        row.appendChild(el("div", null, `${progress}%`));
+        container.appendChild(row);
+      });
     }
 
-    let MILESTONES = [];
-
     async function refreshPayPalStatus() {
-      const el = document.getElementById("kpi-mode");
+      const output = document.getElementById("kpi-mode");
       const sub = document.getElementById("kpi-mode-sub");
       try {
-        const st = await (await fetch("/api/paypal/status")).json();
-        if (st.mode === "LIVE_SANDBOX" && st.connected) {
-          el.textContent = "PayPal Sandbox · live";
-          el.style.color = "var(--green)";
-          sub.textContent = "OAuth token issued by api-m.sandbox.paypal.com";
-        } else if (st.mode === "LIVE_SANDBOX") {
-          el.textContent = "PayPal Sandbox · error";
-          el.style.color = "var(--red)";
-          sub.textContent = (st.error && (st.error.paypal_error || st.error.details)) || "Could not reach PayPal";
-        } else {
-          el.textContent = "Replay (simulated)";
-          el.style.color = "var(--amber)";
-          sub.textContent = "No PayPal credentials configured — no PayPal calls are made";
-        }
+        const st = await apiJson("/api/paypal/status");
+        output.textContent = st.mode === "LIVE_SANDBOX" ? (st.connected ? "PayPal Sandbox · live" : "PayPal Sandbox · error") : "Replay (simulated)";
+        output.style.color = st.connected ? "var(--green)" : "var(--amber)";
+        sub.textContent = st.connected ? "Sandbox OAuth verified. No real money." : (st.mode === "LIVE_SANDBOX" ? "PayPal connection failed. Replay demos remain available." : "Replay payments make no PayPal calls.");
         const llm = st.llm_review || {};
-        sub.textContent += st.llm_review_configured
-          ? ` · AI reviewer: ${llm.active_model || (llm.candidate_models || [])[0] || "configured"}`
-          : " · AI reviewer not configured (live capture blocked; Replay uses guardrails)";
-      } catch (e) {
-        el.textContent = "Status unavailable";
+        sub.textContent += st.llm_review_configured ? ` · AI: ${llm.active_model || "configured; model confirmed after review"}` : " · No AI reviewer: live capture blocked; Replay uses guardrails.";
+      } catch (_) {
+        output.textContent = "Status unavailable";
+        sub.textContent = "Could not verify PayPal connectivity. Refresh to check again.";
       }
     }
 
+    async function fetchSample(name) {
+      const sample = await apiJson(`/api/samples/${name}`);
+      document.getElementById("artifact-content").value = sample.content;
+      document.getElementById("artifact-type").value = "python_code";
+      document.getElementById("acceptance-evidence").value = "";
+    }
+
     async function loadSample(name) {
-      const res = await fetch(`/api/samples/${name}`);
-      if (res.ok) document.getElementById("artifact-content").value = (await res.json()).content;
+      await runAction("Loading sample…", async () => {
+        await fetchSample(name);
+        status(`${name === "good" ? "Implementation" : "Stubbed"} sample loaded. Review the selected milestone's criteria, then run the audit.`);
+      });
     }
 
     function el(tag, cls, text) {
@@ -325,105 +448,155 @@ def test_escrow_state_transitions():
     function updateApprovalBox() {
       const m = selectedMilestone();
       const box = document.getElementById("approval-box");
-      if (m && m.escrow_status === "AWAITING_BUYER_APPROVAL" && m.approve_url) {
-        document.getElementById("approve-link").href = m.approve_url;
-        box.style.display = "block";
-      } else {
-        box.style.display = "none";
-      }
+      box.style.display = m && m.escrow_status === "AWAITING_BUYER_APPROVAL" && m.approve_url ? "block" : "none";
+      if (box.style.display === "block") document.getElementById("approve-link").href = m.approve_url;
       renderAiReviewer(m && m.ai_reviewer);
+      const detail = document.getElementById("selection-detail");
+      detail.replaceChildren();
+      if (m) {
+        detail.appendChild(el("strong", null, `${m.paypal_mode === "LIVE_SANDBOX" ? "PayPal Sandbox" : "Replay · simulated payments"} · ${m.escrow_status}`));
+        const criteria = el("ul");
+        (m.required_criteria || []).forEach(c => criteria.appendChild(el("li", null, c)));
+        detail.appendChild(criteria);
+        detail.appendChild(el("div", null, m.last_audit_summary || ""));
+      }
+      updateControls();
     }
 
     async function postJson(url, body) {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined
-      });
-      const out = await res.json();
-      document.getElementById("audit-output").textContent = (res.ok ? "" : `HTTP ${res.status}\n`) + JSON.stringify(out, null, 2);
-      await refreshLedger();
+      let out;
+      try { out = await apiJson(url, body, "POST"); }
+      catch (err) {
+        // Reconcile any server-side changes, but never retry the mutation.
+        try { await refreshLedger(); } catch (_) { ledgerReady = false; }
+        throw err;
+      }
+      document.getElementById("audit-output").textContent = JSON.stringify(out, null, 2);
+      try { await refreshLedger(); }
+      catch (_) {
+        ledgerReady = false;
+        status("The operation completed, but the ledger could not refresh. Its response is preserved below. Refresh the ledger before another action.", "error");
+        return out;
+      }
+      const m = out.milestone;
+      if (m) {
+        document.getElementById("milestone-select").value = m.milestone_id;
+        updateApprovalBox();
+      }
+      const pendingWarning = out.status === "pending" ? " Payment is not confirmed. Reconcile with PayPal before any further payment action." : "";
+      const invoiceWarning = out.paypal_invoice_error ? " Capture succeeded, but invoice creation needs attention. See telemetry." : "";
+      status((m ? `${m.milestone_id}: ${m.escrow_status}.` : "Operation completed.") + invoiceWarning + pendingWarning,
+        invoiceWarning || pendingWarning ? "error" : "success");
       return out;
     }
 
     async function authorizeSelected() {
       const m = selectedMilestone();
-      if (m) await postJson(`/api/escrow/${m.milestone_id}/authorize`);
+      if (m) await runAction("Checking the approved Sandbox order…", () => postJson(`/api/escrow/${m.milestone_id}/authorize`));
     }
 
     async function voidSelected() {
       const m = selectedMilestone();
-      if (m) await postJson(`/api/escrow/${m.milestone_id}/void`);
+      if (m) await runAction("Voiding the selected hold…", () => postJson(`/api/escrow/${m.milestone_id}/void`));
     }
 
     async function refreshLedger() {
-      const res = await fetch("/api/milestones");
-      const data = await res.json();
+      const data = await apiJson("/api/milestones");
+      if (!Array.isArray(data.milestones) || !data.metrics) throw new Error("The ledger response was incomplete.");
       MILESTONES = data.milestones;
-      gridApi.setGridOption("rowData", data.milestones);
-      renderGantt(data.milestones);
-
+      if (gridApi) gridApi.setGridOption("rowData", MILESTONES);
+      else renderFallbackLedger();
+      renderGantt(MILESTONES);
       document.getElementById("kpi-total").textContent = data.metrics.total_milestones;
-      document.getElementById("kpi-locked").textContent = `$${data.metrics.escrow_locked_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-      document.getElementById("kpi-settled").textContent = `$${data.metrics.settled_captured_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-
-      const sel = document.getElementById("milestone-select");
-      const currentVal = sel.value || "MS-1002";
-      sel.innerHTML = data.milestones.map(m =>
-        `<option value="${m.milestone_id}">${m.milestone_id} — ${m.milestone_title} ($${m.amount} ${m.escrow_status})</option>`
-      ).join("");
-      sel.value = currentVal;
+      const moneyLines = amounts => Object.entries(amounts || {}).map(([currency, amount]) => formatMoney(amount, currency)).join("\n") || "None";
+      document.getElementById("kpi-locked").textContent = moneyLines(data.metrics.escrow_locked_by_currency);
+      document.getElementById("kpi-settled").textContent = moneyLines(data.metrics.settled_captured_by_currency);
+      document.getElementById("ledger-source").textContent = `${data.metrics.live_sandbox_records} Sandbox records · ${MILESTONES.length - data.metrics.live_sandbox_records} Replay records. Totals include both sources, separated by currency without conversion.`;
+      const select = document.getElementById("milestone-select");
+      const current = select.value || "MS-1002";
+      select.replaceChildren();
+      MILESTONES.forEach(m => {
+        const option = el("option", null, `${m.milestone_id} · ${m.milestone_title} (${formatMoney(m.amount, m.currency)} · ${m.escrow_status})`);
+        option.value = m.milestone_id;
+        select.appendChild(option);
+      });
+      select.value = MILESTONES.some(m => m.milestone_id === current) ? current : (MILESTONES[0]?.milestone_id || "");
+      ledgerReady = true;
       updateApprovalBox();
     }
 
+    function verificationPayload() {
+      const content = document.getElementById("artifact-content").value;
+      const rateInput = document.getElementById("test-pass-rate").value;
+      const rate = Number(rateInput);
+      if (content.trim().length < 10) throw new Error("Load a sample or enter at least 10 characters of deliverable content.");
+      if (rateInput.trim() === "" || !Number.isFinite(rate) || rate < 0 || rate > 100) throw new Error("Enter a reported test pass rate between 0 and 100.");
+      return {milestone_id: document.getElementById("milestone-select").value,
+        artifact_type: document.getElementById("artifact-type").value, artifact_content: content,
+        acceptance_evidence: document.getElementById("acceptance-evidence").value, test_pass_rate: rate / 100};
+    }
+
     async function submitVerification() {
-      const milestone_id = document.getElementById("milestone-select").value;
-      const artifact_type = document.getElementById("artifact-type").value;
-      const artifact_content = document.getElementById("artifact-content").value;
-      const acceptance_evidence = document.getElementById("acceptance-evidence").value;
-      document.getElementById("ai-panel-body").textContent = "AI reviewer is reading the deliverable…";
-      await postJson("/api/escrow/verify-and-settle", { milestone_id, artifact_type, artifact_content, acceptance_evidence, test_pass_rate: 0.98 });
+      await runAction("Reviewing the deliverable… AI review can take a few minutes. Please keep this page open.", async () => {
+        const body = verificationPayload();
+        document.getElementById("ai-panel-body").textContent = "AI reviewer is reading the deliverable…";
+        try { await postJson("/api/escrow/verify-and-settle", body); }
+        catch (err) { renderAiReviewer(selectedMilestone()?.ai_reviewer); throw err; }
+      });
     }
 
     async function createNewEscrowHold() {
-      const out = await postJson("/api/escrow/create", {
-        contract_id: "CTR-2026-301",
-        project_name: "Agentic Checkout Widget",
-        milestone_title: "Milestone 1: PayPal Smart Buttons + AI Fraud Guard",
-        amount: 275.00,
-        currency: "USD",
+      await runAction("Creating a new hold…", () => postJson("/api/escrow/create", {
+        contract_id: "CTR-2026-301", project_name: "Agentic Checkout Widget",
+        milestone_title: "Milestone 1: PayPal capture endpoint & tests", amount: 275, currency: "USD",
         funding: document.getElementById("funding").value,
-        required_criteria: [
-          "Provide FastAPI endpoint for PayPal authorization capture and invoice creation",
-          "Include automated unit tests for escrow state transitions"
-        ]
-      });
-      if (out.milestone) {
-        document.getElementById("milestone-select").value = out.milestone.milestone_id;
-        updateApprovalBox();
-      }
+        required_criteria: ["Provide FastAPI endpoint for PayPal authorization capture and invoice creation", "Include automated unit tests for escrow state transitions"]
+      }));
     }
 
     async function prefillAndRunDemo() {
-      document.getElementById("milestone-select").value = "MS-1002";
-      await submitVerification();
+      await runAction("Preparing a fresh Replay demo. Payments will be simulated; no PayPal calls are made.", async () => {
+        await fetchSample("good");
+        document.getElementById("test-pass-rate").value = "98";
+        const created = await postJson("/api/demo/replay");
+        if (!ledgerReady) return;
+        document.getElementById("milestone-select").value = created.milestone.milestone_id;
+        updateApprovalBox();
+        status("Auditing the fresh Replay milestone… Payments are simulated. The configured AI reviewer, if available, checks the sample.");
+        await postJson("/api/escrow/verify-and-settle", verificationPayload());
+      });
+    }
+
+    async function refreshDashboard() {
+      if (busy) return;
+      busy = true; updateControls();
+      status("Refreshing the ledger…");
+      try {
+        await refreshLedger();
+        uncertainOutcome = false;
+        status("Ledger refreshed. Check the selected milestone's state before taking another action.");
+      } catch (err) {
+        ledgerReady = false;
+        status(`Could not load the ledger: ${err.message} Use Refresh to try again.`, "error");
+      } finally { busy = false; updateControls(); }
+      await refreshPayPalStatus();
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
-      const gridDiv = document.getElementById("escrowGrid");
-      gridApi = agGrid.createGrid(gridDiv, gridOptions);
-      await refreshLedger();
-      await refreshPayPalStatus();
-      await loadSample("good");
+      try { if (typeof agGrid !== "undefined") gridApi = agGrid.createGrid(document.getElementById("escrowGrid"), gridOptions); }
+      catch (_) { gridApi = null; }
+      document.getElementById("milestone-select").addEventListener("change", updateApprovalBox);
+      await refreshDashboard();
+      if (!ledgerReady) return;
       const q = new URLSearchParams(location.search);
       const back = q.get("authorized") || q.get("authorize_failed") || q.get("cancelled");
       if (back) {
         document.getElementById("milestone-select").value = back;
         updateApprovalBox();
         const m = selectedMilestone();
-        document.getElementById("audit-output").textContent = m ? JSON.stringify(m, null, 2) : back;
+        document.getElementById("audit-output").textContent = m ? JSON.stringify(m, null, 2) : "This demo record no longer exists. The service may have restarted. Create a fresh demo.";
+        status(m ? `${m.milestone_id}: ${m.last_audit_summary}` : "The returned demo record is no longer available. Create a fresh demo.", q.has("authorize_failed") || !m ? "error" : "info");
       }
-      document.getElementById("milestone-select").addEventListener("change", updateApprovalBox);
     });
   </script>
 </body>
